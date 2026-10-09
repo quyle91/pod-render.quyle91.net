@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POD Render Studio & Visual QA Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-card-hover: rgba(31, 41, 55, 0.9);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent: #06b6d4;
+      --accent-green: #10b981;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.1) 0%, transparent 40%);
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #34d399;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: #34d399;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #34d399;
+    }
+
+    .container {
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 32px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #ffffff;
+      background: var(--primary);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Form Controls */
+    .form-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-width: 260px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    textarea {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      box-shadow: none;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: var(--accent-green);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .pill-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pill-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .pill:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    /* View Switcher */
+    .view-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .view-modes {
+      display: flex;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      gap: 4px;
+    }
+
+    .view-mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .view-mode-btn.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    /* Comparison Display Grid */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 960px) {
+      .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .preview-box {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preview-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-canvas-container {
+      position: relative;
+      width: 100%;
+      padding-top: 100%; /* 1:1 Aspect Ratio */
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background-size: cover;
+      background-position: center;
+    }
+
+    .preview-canvas-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Background Styles for Transparent Print PNG */
+    .bg-checker {
+      background-image: linear-gradient(45deg, #262626 25%, transparent 25%), 
+                        linear-gradient(-45deg, #262626 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #262626 75%), 
+                        linear-gradient(-45deg, transparent 75%, #262626 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #171717;
+    }
+
+    .bg-dark-shirt {
+      background-color: #18181b;
+    }
+
+    .bg-white {
+      background-color: #ffffff;
+    }
+
+    .bg-slate {
+      background: radial-gradient(circle at 50% 40%, #334155 0%, #1e293b 100%);
+    }
+
+    .bg-selector {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .bg-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .bg-btn:hover {
+      transform: scale(1.15);
+    }
+
+    /* Overlay Mode */
+    .overlay-container {
+      position: relative;
+      width: 100%;
+      max-width: 680px;
+      margin: 0 auto;
+      padding-top: min(100%, 680px);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .overlay-base, .overlay-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .overlay-top {
+      pointer-events: none;
+      transition: opacity 0.05s ease;
+    }
+
+    .slider-container {
+      max-width: 680px;
+      margin: 20px auto 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    /* Specs Details */
+    .specs-box {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 380px;
+      overflow-y: auto;
+      color: #e2e8f0;
+    }
+
+    /* Meta Info Bar */
+    .meta-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 13px;
+    }
+
+    .meta-item {
+      display: flex;
+      gap: 6px;
+    }
+
+    .meta-item strong {
+      color: var(--text-muted);
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .actions-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">POD</div>
+      <div>
+        <div class="brand-title">POD Print Render Studio & Visual QA Lab</div>
+        <div class="brand-subtitle">Ultra Fast Multi-Format Test Harness for 300 DPI Rendering</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 6px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 5px 12px; font-size: 12px; color: #a5b4fc; font-weight: 500;">
+        <span>🌐 <strong>Domain:</strong> <span id="header-domain" style="color: #fff; font-weight: 700;">pod.localhost</span></span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 5px 12px; font-size: 12px; color: #94a3b8;">
+        <span>🔑 <strong>Key:</strong> <code id="header-license-key" style="color: #e2e8f0; font-family: var(--font-mono); font-size: 11px; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">...</code></span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 5px 12px; font-size: 12px; color: #94a3b8;">
+        <span>📅 <strong>Hạn:</strong> <span id="header-license-dates" style="color: #e2e8f0; font-weight: 600;">...</span></span>
+      </div>
+      <div class="badge" id="header-license-badge">
+        <span class="badge-dot"></span>
+        <span id="header-license-text">Checking License...</span>
+      </div>
+      <div class="badge" id="service-status">
+        <span class="badge-dot"></span>
+        <span>Worker Active (300 DPI Engine)</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    
+    <!-- Input Card -->
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchInputTab('tab-order')">📦 By Order ID</button>
+        <button class="tab-btn" onclick="switchInputTab('tab-json')">📝 By Raw _pod_canvas_state (JSON)</button>
+      </div>
+
+      <!-- Tab 1: Order ID -->
+      <div id="tab-order" class="tab-pane active">
+        <div class="form-row">
+          <div class="form-group" style="max-width: 240px;">
+            <label for="input-order-id">Order ID</label>
+            <input type="number" id="input-order-id" value="281" placeholder="e.g. 281">
+          </div>
+          <button class="btn" id="btn-render-order" onclick="runRenderByOrder()">
+            <span id="btn-order-spinner" style="display:none;" class="spinner"></span>
+            <span>🚀 Fetch & Render Order</span>
+          </button>
+        </div>
+        <div class="pill-group">
+          <span class="pill-label">Quick Test Presets:</span>
+          <span class="pill" onclick="setAndRenderOrder(281)">Order #281 (T-Shirt Cat)</span>
+          <span class="pill" onclick="setAndRenderOrder(280)">Order #280</span>
+          <span class="pill" onclick="setAndRenderOrder(279)">Order #279</span>
+          <span class="pill" onclick="setAndRenderOrder(278)">Order #278</span>
+        </div>
+      </div>
+
+      <!-- Tab 2: Raw JSON -->
+      <div id="tab-json" class="tab-pane">
+        <div class="form-group">
+          <label for="input-raw-state">Raw Canvas State JSON</label>
+          <textarea id="input-raw-state" placeholder='{"version":"1.0","canvas":{"width":1200,"height":1200,"dpi":300},"layers":[...]}'></textarea>
+        </div>
+        <div class="actions-bar" style="margin-top: 12px;">
+          <button class="btn" id="btn-render-json" onclick="runRenderByJson()">
+            <span id="btn-json-spinner" style="display:none;" class="spinner"></span>
+            <span>⚡ Render Canvas State JSON</span>
+          </button>
+          <button class="btn btn-secondary" onclick="formatJsonInput()">Format JSON</button>
+          <button class="btn btn-secondary" onclick="loadSampleJson()">Load Sample (Order 281 State)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="card" id="results-card" style="display:none;">
+      
+      <!-- Meta Information -->
+      <div class="view-toolbar">
+        <div class="meta-bar" id="meta-summary">
+          <div class="meta-item"><strong>Order:</strong> <span id="res-order-id">#281</span></div>
+          <div class="meta-item"><strong>Item:</strong> <span id="res-item-id">#13</span></div>
+          <div class="meta-item"><strong>Product:</strong> <span id="res-product-name">Custom Product</span></div>
+          <div class="meta-item"><strong>Target Resolution:</strong> <span id="res-resolution">3000 x 3000 px @ 300 DPI</span></div>
+        </div>
+
+        <div class="view-modes">
+          <button class="view-mode-btn active" onclick="switchViewMode('side-by-side')">Side-by-Side</button>
+          <button class="view-mode-btn" onclick="switchViewMode('overlay')">Overlay Comparison</button>
+          <button class="view-mode-btn" onclick="switchViewMode('specs')">Production Specs</button>
+        </div>
+      </div>
+
+      <!-- Mode 1: Side-by-Side View -->
+      <div id="view-side-by-side">
+        <div class="comparison-grid">
+          
+          <!-- Mockup Preview Box -->
+          <div class="preview-box">
+            <div class="preview-header">
+              <div class="preview-title">
+                <span>👕 Mockup Preview</span>
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(Garment & Background)</span>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="pill" style="font-size: 11px;" id="btn-toggle-preview-src" onclick="togglePreviewSource()">Show Store Preview</button>
+              </div>
+            </div>
+            
+            <div class="preview-canvas-container bg-slate">
+              <img id="img-mockup-preview" class="preview-canvas-img" src="" alt="Mockup Preview">
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-muted); display:flex; justify-content:space-between;">
+              <span id="mockup-info-badge">High-Res Engine Mockup</span>
+              <a id="link-mockup-download" href="#" target="_blank" style="color: var(--accent); text-decoration:none;">Open Full Size ↗</a>
+            </div>
+          </div>
+
+          <!-- Print-Ready 300 DPI Box -->
+          <div class="preview-box">
+            <div class="preview-header">
+              <div class="preview-title">
+                <span>🖨️ Print-Ready 300 DPI PNG</span>
+                <span style="font-size: 11px; color: var(--accent-green); font-weight: normal;">(Transparent Graphic)</span>
+              </div>
+              
+              <!-- Background Swatches -->
+              <div class="bg-selector">
+                <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">Backdrop:</span>
+                <button class="bg-btn bg-dark-shirt" title="Dark T-Shirt (#18181b)" onclick="changePrintBg('bg-dark-shirt')"></button>
+                <button class="bg-btn bg-checker" title="Transparent Checkerboard" onclick="changePrintBg('bg-checker')"></button>
+                <button class="bg-btn bg-white" title="White Canvas (#ffffff)" onclick="changePrintBg('bg-white')"></button>
+                <button class="bg-btn bg-slate" title="Studio Slate (#1e293b)" onclick="changePrintBg('bg-slate')"></button>
+              </div>
+            </div>
+
+            <div class="preview-canvas-container bg-dark-shirt" id="print-container">
+              <img id="img-print-ready" class="preview-canvas-img" src="" alt="Print Ready Transparent PNG">
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-muted); display:flex; justify-content:space-between;">
+              <span>32-bit Transparent PNG @ 300 DPI</span>
+              <a id="link-print-download" href="#" target="_blank" style="color: var(--accent-green); text-decoration:none;">Open Full Size ↗</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Mode 2: Interactive Overlay View -->
+      <div id="view-overlay" style="display: none;">
+        <div class="overlay-container bg-slate">
+          <img id="overlay-mockup" class="overlay-base" src="" alt="Mockup Base">
+          <img id="overlay-print" class="overlay-top" src="" alt="Print Graphic Overlay">
+        </div>
+
+        <div class="slider-container">
+          <div class="slider-labels">
+            <span>Mockup Reference (0%)</span>
+            <span id="slider-pct" style="color: var(--primary); font-weight: 700;">50% Opacity</span>
+            <span>Print Graphic Only (100%)</span>
+          </div>
+          <input type="range" id="opacity-slider" min="0" max="100" value="50" oninput="updateOverlayOpacity(this.value)">
+          <p style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:4px;">
+            Drag the slider to visually verify that text and clipart align with 100% precision on the shirt.
+          </p>
+        </div>
+      </div>
+
+      <!-- Mode 3: Production Specs View -->
+      <div id="view-specs" style="display: none;">
+        <div class="specs-box" id="specs-text-content"></div>
+      </div>
+
+      <!-- Action Downloads -->
+      <div class="actions-bar" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+        <a id="btn-dl-zip" href="#" class="btn btn-success" download>📦 Download Factory Production ZIP</a>
+        <a id="btn-dl-print" href="#" class="btn btn-secondary" download>🖼️ Download 300 DPI PNG</a>
+        <a id="btn-dl-mockup" href="#" class="btn btn-secondary" download>👕 Download Mockup JPG</a>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let currentRenderData = null;
+    let showingStorePreview = false;
+
+    const sampleOrder281State = {
+      "version": "1.0",
+      "canvas": { "width": 1200, "height": 1200, "dpi": 300, "unit": "px" },
+      "preview": { "width": 600, "height": 600 },
+      "layers": [
+        {
+          "id": "mockup_base",
+          "type": "image",
+          "name": "Black T-Shirt",
+          "url": "http://pod.localhost/wp-content/plugins/pod-customizer/assets/mockups/tshirt-black.svg",
+          "x": 600,
+          "y": 600,
+          "width": 1200,
+          "height": 1200,
+          "rotation": 0,
+          "zIndex": 1,
+          "printable": false
+        },
+        {
+          "id": "clipart_1",
+          "type": "image",
+          "name": "Playful Cat",
+          "url": "http://pod.localhost/wp-content/plugins/pod-customizer/assets/cliparts/cat.svg",
+          "x": 590,
+          "y": 1013,
+          "width": 360,
+          "height": 360,
+          "rotation": 0,
+          "zIndex": 2,
+          "printable": true
+        },
+        {
+          "id": "custom_text_1",
+          "type": "text",
+          "name": "Custom Title",
+          "text": "Best Dad Ever",
+          "fontFamily": "Roboto",
+          "fontSize": 162,
+          "fontWeight": "700",
+          "fill": "#ffffff",
+          "textAlign": "center",
+          "x": 597,
+          "y": 703,
+          "rotation": 0,
+          "zIndex": 4,
+          "printable": true
+        }
+      ]
+    };
+
+    function switchInputTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    function switchViewMode(mode) {
+      document.querySelectorAll('.view-mode-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      document.getElementById('view-side-by-side').style.display = mode === 'side-by-side' ? 'block' : 'none';
+      document.getElementById('view-overlay').style.display = mode === 'overlay' ? 'block' : 'none';
+      document.getElementById('view-specs').style.display = mode === 'specs' ? 'block' : 'none';
+    }
+
+    function changePrintBg(bgClass) {
+      const container = document.getElementById('print-container');
+      container.className = 'preview-canvas-container ' + bgClass;
+    }
+
+    function updateOverlayOpacity(val) {
+      document.getElementById('slider-pct').textContent = val + '% Opacity';
+      document.getElementById('overlay-print').style.opacity = val / 100;
+    }
+
+    function loadSampleJson() {
+      document.getElementById('input-raw-state').value = JSON.stringify(sampleOrder281State, null, 2);
+    }
+
+    function formatJsonInput() {
+      const ta = document.getElementById('input-raw-state');
+      try {
+        const parsed = JSON.parse(ta.value);
+        ta.value = JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        alert('Invalid JSON syntax: ' + e.message);
+      }
+    }
+
+    function setAndRenderOrder(orderId) {
+      document.getElementById('input-order-id').value = orderId;
+      runRenderByOrder();
+    }
+
+    function getSecretToken() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('secret') || '';
+    }
+
+    function getDomainName() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('domain') || 'pod.localhost';
+    }
+
+    async function loadLicenseDiagnostics() {
+      const domain = getDomainName();
+      const secret = getSecretToken();
+      const domainEl = document.getElementById('header-domain');
+      const keyEl = document.getElementById('header-license-key');
+      const datesEl = document.getElementById('header-license-dates');
+      const badgeEl = document.getElementById('header-license-badge');
+      const textEl = document.getElementById('header-license-text');
+      if (domainEl) domainEl.textContent = domain;
+      if (keyEl) keyEl.textContent = secret || 'N/A';
+
+      function formatDateOnly(isoStr) {
+        if (!isoStr) return 'N/A';
+        try {
+          const d = new Date(isoStr);
+          return isNaN(d.getTime()) ? isoStr : d.toISOString().split('T')[0];
+        } catch {
+          return isoStr;
+        }
+      }
+
+      try {
+        const res = await fetch(`/health?domain=${encodeURIComponent(domain)}&secret=${encodeURIComponent(secret)}`);
+        const json = await res.json();
+        if (json && json.license) {
+          const lic = json.license;
+          if (domainEl) domainEl.textContent = lic.domain || domain;
+          if (keyEl) keyEl.textContent = lic.license_key || secret || 'N/A';
+          if (datesEl) {
+            const startFmt = formatDateOnly(lic.starts_at);
+            const expFmt = formatDateOnly(lic.expires_at);
+            datesEl.textContent = `${startFmt} ➔ ${expFmt}`;
+          }
+          if (badgeEl && textEl) {
+            if (lic.is_expired) {
+              badgeEl.style.background = 'rgba(239, 68, 68, 0.15)';
+              badgeEl.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+              badgeEl.style.color = '#f87171';
+              const dot = badgeEl.querySelector('.badge-dot');
+              if (dot) {
+                dot.style.background = '#ef4444';
+                dot.style.boxShadow = '0 0 8px #ef4444';
+              }
+              textEl.textContent = `Expired (0 days)`;
+              badgeEl.title = `Expired on ${lic.expires_at ? new Date(lic.expires_at).toLocaleDateString() : 'N/A'}`;
+            } else {
+              textEl.textContent = `Active (${lic.days_remaining} days)`;
+              badgeEl.title = `Valid from ${lic.starts_at ? new Date(lic.starts_at).toLocaleDateString() : 'N/A'} to ${lic.expires_at ? new Date(lic.expires_at).toLocaleDateString() : 'N/A'}`;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load license diagnostics:', err);
+      }
+    }
+
+    async function runRenderByOrder() {
+      const orderId = document.getElementById('input-order-id').value;
+      if (!orderId) {
+        alert('Please enter an Order ID');
+        return;
+      }
+
+      const spinner = document.getElementById('btn-order-spinner');
+      spinner.style.display = 'inline-block';
+
+      try {
+        const secret = getSecretToken();
+        const domain = getDomainName();
+        const res = await fetch('/api/v1/test-render', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-POD-SECRET': secret,
+            'X-POD-DOMAIN': domain
+          },
+          body: JSON.stringify({ 
+            order_id: parseInt(orderId, 10),
+            domain_name: domain
+          })
+        });
+        const json = await res.json();
+        if (res.status === 401) {
+          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to WordPress Admin.'));
+          return;
+        }
+        if (res.status === 403 && json.error_code === 'LICENSE_EXPIRED') {
+          alert('⛔ Giấy Phép Hết Hạn: License cho domain "' + domain + '" đã hết hạn. Vui lòng gia hạn để tiếp tục render.');
+          return;
+        }
+        if (!json.success) {
+          alert('Render failed: ' + (json.error || 'Unknown error'));
+          return;
+        }
+        displayResults(json.data);
+      } catch (err) {
+        alert('Network or Server error: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+
+    async function runRenderByJson() {
+      const ta = document.getElementById('input-raw-state');
+      let parsed;
+      try {
+        parsed = JSON.parse(ta.value);
+      } catch (e) {
+        alert('Please enter valid JSON in canvas state');
+        return;
+      }
+
+      const spinner = document.getElementById('btn-json-spinner');
+      spinner.style.display = 'inline-block';
+
+      try {
+        const secret = getSecretToken();
+        const domain = getDomainName();
+        const res = await fetch('/api/v1/test-render', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-POD-SECRET': secret,
+            'X-POD-DOMAIN': domain
+          },
+          body: JSON.stringify({
+            order_id: 'test_' + Date.now(),
+            domain_name: domain,
+            canvas_state: parsed
+          })
+        });
+        const json = await res.json();
+        if (res.status === 401) {
+          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to WordPress Admin.'));
+          return;
+        }
+        if (res.status === 403 && json.error_code === 'LICENSE_EXPIRED') {
+          alert('⛔ Giấy Phép Hết Hạn: License cho domain "' + domain + '" đã hết hạn. Vui lòng gia hạn để tiếp tục render.');
+          return;
+        }
+        if (!json.success) {
+          alert('Render failed: ' + (json.error || 'Unknown error'));
+          return;
+        }
+        displayResults(json.data);
+      } catch (err) {
+        alert('Network or Server error: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+
+    function displayResults(data) {
+      currentRenderData = data;
+      showingStorePreview = false;
+
+      document.getElementById('results-card').style.display = 'block';
+
+      document.getElementById('res-order-id').textContent = '#' + (data.input_payload?.order_id || 'N/A');
+      document.getElementById('res-item-id').textContent = '#' + (data.input_payload?.item_id || 'N/A');
+      document.getElementById('res-product-name').textContent = data.input_payload?.product_name || 'POD Product';
+      document.getElementById('res-resolution').textContent = `${data.width} x ${data.height} px @ ${data.dpi} DPI`;
+
+      // Set Mockup Preview Image
+      const mockupUrl = data.public_mockup_url || data.mockup_url || data.frontend_preview_url;
+      const printUrl = data.public_print_url || data.url;
+
+      document.getElementById('img-mockup-preview').src = mockupUrl;
+      document.getElementById('link-mockup-download').href = mockupUrl;
+
+      // Set Print-Ready Transparent Image
+      document.getElementById('img-print-ready').src = printUrl;
+      document.getElementById('link-print-download').href = printUrl;
+
+      // Set Overlay Images
+      document.getElementById('overlay-mockup').src = mockupUrl;
+      document.getElementById('overlay-print').src = printUrl;
+      updateOverlayOpacity(50);
+      document.getElementById('opacity-slider').value = 50;
+
+      // Set Specs text
+      document.getElementById('specs-text-content').textContent = data.specs_text || 'No specs generated.';
+
+      // Set Download Links
+      document.getElementById('btn-dl-zip').href = data.public_zip_url || data.zip_url;
+      document.getElementById('btn-dl-print').href = printUrl;
+      document.getElementById('btn-dl-mockup').href = mockupUrl;
+
+      // Scroll to results smoothly
+      document.getElementById('results-card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function togglePreviewSource() {
+      if (!currentRenderData) return;
+      const btn = document.getElementById('btn-toggle-preview-src');
+      const badge = document.getElementById('mockup-info-badge');
+      const img = document.getElementById('img-mockup-preview');
+      const overlayBase = document.getElementById('overlay-mockup');
+
+      if (!showingStorePreview) {
+        if (!currentRenderData.frontend_preview_url) {
+          alert('No frontend store preview URL recorded for this order');
+          return;
+        }
+        img.src = currentRenderData.frontend_preview_url;
+        overlayBase.src = currentRenderData.frontend_preview_url;
+        btn.textContent = 'Show Engine Mockup';
+        badge.textContent = 'Frontend Store Preview';
+        showingStorePreview = true;
+      } else {
+        const mockupUrl = currentRenderData.public_mockup_url || currentRenderData.mockup_url;
+        img.src = mockupUrl;
+        overlayBase.src = mockupUrl;
+        btn.textContent = 'Show Store Preview';
+        badge.textContent = 'High-Res Engine Mockup';
+        showingStorePreview = false;
+      }
+    }
+
+    // Initialize with sample JSON loaded
+    loadSampleJson();
+    loadLicenseDiagnostics();
+  </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "pod-backend-worker",
+  "version": "1.0.0",
+  "description": "High-Performance 300 DPI Print-Ready Render Engine for POD Personalization",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ag-psd": "^31.0.2",
+    "archiver": "^7.0.1",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.4.0",
+    "sharp": "^0.33.5",
+    "sql.js": "^1.12.0",
+    "zod": "^3.24.2"
+  }
+}

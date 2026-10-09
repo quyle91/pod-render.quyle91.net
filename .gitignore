@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & local secrets
+.env
+.env.*
+!.env.example
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Storage contents (keep directory structure via .gitkeep)
+storage/prints/*
+!storage/prints/.gitkeep
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/chunks/*
+!storage/chunks/.gitkeep
+storage/*.sqlite
+storage/*.sqlite-journal

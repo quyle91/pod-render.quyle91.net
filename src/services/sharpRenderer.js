@@ -42,30 +42,22 @@ class SharpRenderer {
                 const parts = urlOrBuffer.split(',');
                 return Buffer.from(parts[1], 'base64');
             }
-            // Fast Two-Tier Local Storage Resolution
-            if (urlOrBuffer.includes('/wp-content/uploads/')) {
-                const relPath = urlOrBuffer.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/?wp-content\/uploads\//, '');
-                const localPath = path.join('/app/wp-uploads', relPath);
-                if (fs.existsSync(localPath)) {
-                    return fs.readFileSync(localPath);
-                }
-                const hostPath = path.resolve(__dirname, '../../../pod.localhost/source/wp-content/uploads', relPath);
-                if (fs.existsSync(hostPath)) {
-                    return fs.readFileSync(hostPath);
-                }
+            // Direct local file path check (within worker container storage)
+            if (urlOrBuffer.startsWith('/') && fs.existsSync(urlOrBuffer)) {
+                return fs.readFileSync(urlOrBuffer);
             }
-            // HTTP fetch fallback
+            // HTTP fetch resolution
             let reqUrl = urlOrBuffer;
             const headers = {};
             if (reqUrl.includes('//pod.localhost')) {
                 reqUrl = reqUrl.replace('//pod.localhost', '//pod_web');
                 headers['Host'] = 'pod.localhost';
             } else if (reqUrl.startsWith('/')) {
-                reqUrl = 'http://pod_web' + reqUrl;
-                headers['Host'] = 'pod.localhost';
+                const baseUrl = process.env.FRONTEND_INTERNAL_URL || 'http://pod_web';
+                reqUrl = baseUrl + reqUrl;
             }
             try {
-                const res = await axios.get(reqUrl, { responseType: 'arraybuffer', timeout: 10000, headers });
+                const res = await axios.get(reqUrl, { responseType: 'arraybuffer', timeout: 15000, headers });
                 return Buffer.from(res.data);
             } catch (err) {
                 console.error(`[SharpRenderer] Failed to fetch image from ${urlOrBuffer}:`, err.message);

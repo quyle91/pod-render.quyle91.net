@@ -1,25 +1,22 @@
+# /docker-compose.yml
 services:
   backend:
-    container_name: pod_backend
-    build: .
-    restart: unless-stopped
+    container_name: ${APP_NAME:-pod_render}
+    restart: always
     env_file:
       - .env
     volumes:
-      - ./src:/app/src
-      - ./storage:/app/storage
-      - ../pod.localhost/source/public/pod-templates:/app/pod-templates
-      - ../pod.localhost/source/wp-content/uploads:/app/wp-uploads
+      - render_storage:/app/storage
     networks:
-      - proxy_network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.pod_backend.rule=Host(`${APP_DOMAIN}`)"
-      - "traefik.http.routers.pod_backend.entrypoints=web"
-      - "traefik.http.services.pod_backend.loadbalancer.server.port=3001"
-      - "traefik.docker.network=proxy_network"
+      - default
+      - internal_network_vps
 
 networks:
-  proxy_network:
+  default:
+  internal_network_vps:
     external: true
-    name: proxy_network
+    name: ${INTERNAL_NETWORK:-internal_network_vps}
+
+volumes:
+  render_storage:
+    name: ${VOLUME_STORAGE:-pod_render_storage}

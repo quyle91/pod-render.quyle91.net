@@ -176,21 +176,35 @@ router.get('/verify-auth', verifySecret, (req, res) => {
 });
 
 /**
- * POST /api/v1/cleanup
- * Manually trigger storage garbage collection. Protected by verifySecret.
+ * POST /api/v1/mockup-preview
+ * Dựng ảnh phối cảnh không gian nội thất phòng khách / bàn làm việc
+ * lồng ghép tranh canvas tùy biến và phôi khung viền PNG.
  */
-router.post('/cleanup', verifySecret, async (req, res) => {
+router.post('/mockup-preview', verifySecret, async (req, res) => {
     try {
-        const storageCleaner = require('../services/storageCleaner');
-        const stats = await storageCleaner.runCleanup();
+        const payload = req.body || {};
+        if (!payload.background_url || !payload.artwork_base64) {
+            return res.status(422).json({
+                success: false,
+                error: 'Thiếu tham số bắt buộc: background_url và artwork_base64'
+            });
+        }
+
+        const roomMockupRenderer = require('../services/roomMockupRenderer');
+        const result = await roomMockupRenderer.renderMockup(payload);
+
+        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        result.public_mockup_url = `${baseUrl}${result.mockup_url}`;
+
         return res.status(200).json({
             success: true,
-            data: stats
+            data: result
         });
-    } catch (err) {
+    } catch (error) {
+        console.error('[POD Backend] Lỗi render mockup phòng khách:', error);
         return res.status(500).json({
             success: false,
-            error: err.message
+            error: error.message
         });
     }
 });

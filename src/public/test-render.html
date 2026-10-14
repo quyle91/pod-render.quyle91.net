@@ -918,7 +918,7 @@
         });
         const json = await res.json();
         if (res.status === 401) {
-          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to WordPress Admin.'));
+          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to Filament Admin.'));
           return;
         }
         if (res.status === 403 && json.error_code === 'LICENSE_EXPIRED') {
@@ -968,7 +968,7 @@
         });
         const json = await res.json();
         if (res.status === 401) {
-          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to WordPress Admin.'));
+          alert('🔒 Authentication Failed: ' + (json.error || 'Invalid or missing X-POD-SECRET token. Access is restricted to Filament Admin.'));
           return;
         }
         if (res.status === 403 && json.error_code === 'LICENSE_EXPIRED') {

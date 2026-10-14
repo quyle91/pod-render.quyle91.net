@@ -34,7 +34,7 @@ app.get(['/', '/test', '/test-render', '/test-render.html'], async (req, res) =>
             reasonDesc = `Domain <strong>${domain}</strong> chưa được đăng ký trong hệ thống bản quyền Render.<br><br>Vui lòng kiểm tra lại cấu hình domain hoặc liên hệ quản trị viên.`;
         } else if (check.error_code === 'INVALID_SECRET' || check.error_code === 'MISSING_SECRET') {
             reasonTitle = '401 Unauthorized';
-            reasonDesc = `Secret token không hợp lệ hoặc bị thiếu. Vui lòng mở công cụ này từ nút liên kết trong <strong>WordPress Admin &gt; Settings &gt; POD Customizer</strong>.`;
+            reasonDesc = `Secret token không hợp lệ hoặc bị thiếu. Vui lòng mở công cụ này từ nút liên kết trong <strong>Filament Admin &gt; Công Cụ &gt; Công Cụ Hệ Thống (System Tools)</strong>.`;
         }
 
         return res.status(check.status || 403).send(`
@@ -88,7 +88,7 @@ app.get(['/', '/test', '/test-render', '/test-render.html'], async (req, res) =>
         <div class="icon">⛔</div>
         <h1>${reasonTitle}</h1>
         <p>${reasonDesc}</p>
-        <a class="btn" href="http://${domain}/wp-admin/options-general.php?page=pod-customizer-settings">Về trang Cài đặt WordPress ↗</a>
+        <a class="btn" href="http://${domain}/admin/system-tools">Về trang Công Cụ Hệ Thống ↗</a>
     </div>
 </body>
 </html>

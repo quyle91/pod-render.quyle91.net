@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const sharpRenderer = require('../services/sharpRenderer');
+const renderLogger = require('../services/renderLogger');
 const { verifySecret, verifyLicense } = require('../middleware/auth');
 const axios = require('axios');
 
@@ -9,9 +10,22 @@ const axios = require('axios');
  * Initiates render task for a custom order item.
  */
 router.post('/render', verifyLicense, async (req, res) => {
+    const startTime = Date.now();
+    const payload = req.body;
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
     try {
-        const payload = req.body;
         if (!payload || !payload.order_id) {
+            renderLogger.logRender({
+                type: 'render',
+                status: 'failed',
+                order_id: payload?.order_id,
+                item_id: payload?.item_id,
+                client_ip: clientIp,
+                duration_ms: Date.now() - startTime,
+                payload,
+                error_message: 'Strict Data Contract Violation: order_id is required'
+            });
             return res.status(422).json({
                 success: false,
                 error: 'Strict Data Contract Violation: order_id is required'
@@ -26,6 +40,19 @@ router.post('/render', verifyLicense, async (req, res) => {
         const absoluteZipUrl = `${baseUrl}${renderResult.zip_url}`;
         renderResult.public_url = absolutePrintUrl;
         renderResult.public_zip_url = absoluteZipUrl;
+
+        // Log successful render into SQLite
+        renderLogger.logRender({
+            type: 'render',
+            status: 'success',
+            order_id: payload.order_id,
+            item_id: payload.item_id,
+            client_ip: clientIp,
+            duration_ms: Date.now() - startTime,
+            output_path: renderResult.print_output_path,
+            output_url: absolutePrintUrl,
+            payload
+        });
 
         // If a callback URL is provided, notify WordPress asynchronously
         if (payload.callback_url) {
@@ -65,6 +92,16 @@ router.post('/render', verifyLicense, async (req, res) => {
         });
     } catch (error) {
         console.error('[POD Backend] Error during render:', error);
+        renderLogger.logRender({
+            type: 'render',
+            status: 'failed',
+            order_id: payload?.order_id,
+            item_id: payload?.item_id,
+            client_ip: clientIp,
+            duration_ms: Date.now() - startTime,
+            payload,
+            error_message: error.message
+        });
         return res.status(500).json({
             success: false,
             error: error.message
@@ -181,9 +218,23 @@ router.get('/verify-auth', verifySecret, (req, res) => {
  * lồng ghép tranh canvas tùy biến và phôi khung viền PNG.
  */
 router.post('/mockup-preview', verifySecret, async (req, res) => {
+    const startTime = Date.now();
+    const payload = req.body || {};
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
     try {
-        const payload = req.body || {};
         if (!payload.artwork_base64) {
+            renderLogger.logRender({
+                type: 'mockup-preview',
+                status: 'failed',
+                context: payload.context || 'wall',
+                orientation: payload.orientation || 'portrait',
+                canvas_size_code: payload.canvas_size_code,
+                client_ip: clientIp,
+                duration_ms: Date.now() - startTime,
+                payload,
+                error_message: 'Thiếu tham số bắt buộc: artwork_base64'
+            });
             return res.status(422).json({
                 success: false,
                 error: 'Thiếu tham số bắt buộc: artwork_base64'
@@ -199,12 +250,59 @@ router.post('/mockup-preview', verifySecret, async (req, res) => {
         const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
         result.public_mockup_url = `${baseUrl}${result.mockup_url}`;
 
+        // Log successful preview to SQLite
+        renderLogger.logRender({
+            type: 'mockup-preview',
+            status: 'success',
+            context: payload.context,
+            orientation: payload.orientation || 'portrait',
+            canvas_size_code: payload.canvas_size_code,
+            client_ip: clientIp,
+            duration_ms: Date.now() - startTime,
+            output_path: result.output_path,
+            output_url: result.public_mockup_url,
+            payload
+        });
+
         return res.status(200).json({
             success: true,
             data: result
         });
     } catch (error) {
         console.error('[POD Backend] Lỗi render mockup phòng khách:', error);
+        renderLogger.logRender({
+            type: 'mockup-preview',
+            status: 'failed',
+            context: payload.context || 'wall',
+            orientation: payload.orientation || 'portrait',
+            canvas_size_code: payload.canvas_size_code,
+            client_ip: clientIp,
+            duration_ms: Date.now() - startTime,
+            payload,
+            error_message: error.message
+        });
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/v1/render-logs
+ * Xem nhật ký kiểm toán Render (Audit Logs) từ SQLite
+ */
+router.get('/render-logs', verifySecret, async (req, res) => {
+    try {
+        const { limit = 50, offset = 0, type, status } = req.query;
+        const result = await renderLogger.getLogs({ limit, offset, type, status });
+        const stats = await renderLogger.getStats();
+        return res.status(200).json({
+            success: true,
+            stats,
+            data: result
+        });
+    } catch (error) {
         return res.status(500).json({
             success: false,
             error: error.message

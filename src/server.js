@@ -146,11 +146,14 @@ app.use('/api/templates', templatesRouter);
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`[POD Backend] Render engine listening on http://0.0.0.0:${PORT}`);
-    // Initialize SQLite License Manager
+    // Initialize SQLite License Manager & Render Audit Logger
     try {
         await licenseManager.getDb();
+        const renderLogger = require('./services/renderLogger');
+        await renderLogger.getDb();
+        console.log('[POD Backend] SQLite Database initialized (licenses & render_logs).');
     } catch (dbErr) {
-        console.error('[POD Backend] Failed to initialize License Database:', dbErr);
+        console.error('[POD Backend] Failed to initialize Database:', dbErr);
     }
     // Start automatic storage cleaner worker (runs every 30 minutes, deletes test & expired files)
     storageCleaner.startScheduledCleanup(30);

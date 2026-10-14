@@ -79,7 +79,7 @@ class RoomMockupRenderer {
     /**
      * Dựng phối cảnh tranh + khung lên bối cảnh phòng khách hoặc bàn làm việc
      */
-    async renderMockup({ context = 'wall', background_url, frame_url, artwork_base64, transform = {} }) {
+    async renderMockup({ context = 'wall', orientation = 'portrait', canvas_size_code, background_url, frame_url, artwork_base64, transform = {} }) {
         const presetKey = (context === 'desk') ? 'desk' : 'wall';
         const preset = PRESETS[presetKey];
 
@@ -109,8 +109,18 @@ class RoomMockupRenderer {
 
         let framedArtworkBuffer = null;
         if (frameBuffer) {
-            // Lồng artwork vào lòng phôi khung PNG chất lượng cao ở độ phân giải gốc
-            const frameMeta = await sharp(frameBuffer).metadata();
+            let activeFrameBuffer = frameBuffer;
+            let frameMeta = await sharp(activeFrameBuffer).metadata();
+
+            // Tự động xoay phôi khung 90 độ nếu hướng tranh (orientation) không khớp với hướng phôi khung
+            if (orientation === 'landscape' && frameMeta.width < frameMeta.height) {
+                activeFrameBuffer = await sharp(activeFrameBuffer).rotate(90).png().toBuffer();
+                frameMeta = await sharp(activeFrameBuffer).metadata();
+            } else if (orientation === 'portrait' && frameMeta.width > frameMeta.height) {
+                activeFrameBuffer = await sharp(activeFrameBuffer).rotate(90).png().toBuffer();
+                frameMeta = await sharp(activeFrameBuffer).metadata();
+            }
+
             const fW = frameMeta.width;
             const fH = frameMeta.height;
 
@@ -121,7 +131,7 @@ class RoomMockupRenderer {
             // Lớp dưới: Artwork tranh của khách
             // Lớp trên: Phôi khung viền PNG (đục thủng lòng trong)
             framedArtworkBuffer = await sharp(resizedArtwork)
-                .composite([{ input: frameBuffer, top: 0, left: 0 }])
+                .composite([{ input: activeFrameBuffer, top: 0, left: 0 }])
                 .png()
                 .toBuffer();
         } else {
@@ -171,9 +181,19 @@ class RoomMockupRenderer {
                 top = minCeiling;
             }
         } else {
-            // Bối cảnh bàn làm việc: Khung để bàn nhỏ xinh, tựa trên mặt bàn gỗ sồi
-            const maxSafeW = preset.maxSafeWidth || 195;
-            const maxSafeH = preset.maxSafeHeight || 270;
+            // Bối cảnh bàn làm việc: Khung để bàn nhỏ xinh (Tự động thích ứng Khổ Dọc / Ngang / Vuông)
+            let maxSafeW = preset.maxSafeWidth || 160;
+            let maxSafeH = preset.maxSafeHeight || 220;
+
+            if (aspect > 1.15) {
+                // Khung ngang để bàn
+                maxSafeW = 210;
+                maxSafeH = 160;
+            } else if (aspect >= 0.9 && aspect <= 1.15) {
+                // Khung vuông để bàn
+                maxSafeW = 180;
+                maxSafeH = 180;
+            }
 
             finalW = maxSafeW;
             finalH = Math.round(finalW / aspect);

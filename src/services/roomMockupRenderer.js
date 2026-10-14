@@ -4,6 +4,36 @@ const sharp = require('sharp');
 const axios = require('axios');
 const crypto = require('crypto');
 
+/**
+ * Cấu hình 2 Bối Cảnh Chuẩn Vàng Cố Định Trong Render Server (Zero-Config)
+ * - Tường phòng khách: Mảng tường trống phía trên sofa kem cong, ánh sáng từ cửa sổ lớn bên trái.
+ * - Mặt bàn làm việc: Bàn gỗ sồi Scandinavian, ánh sáng từ cửa sổ bên phải, đáy khung tựa trên mặt bàn.
+ */
+const PRESETS = {
+    wall: {
+        bgPath: path.join(__dirname, '../assets/backgrounds/wall_clean.jpg'),
+        anchorXRatio: 0.50, // Căn giữa phòng khách
+        anchorYRatio: 0.29, // Treo thông thoáng phía trên sofa (cách sofa 65px)
+        maxWRatio: 0.36,    // Chiều rộng tối đa 36% ảnh nền
+        maxHRatio: 0.42,    // Chiều cao tối đa 42% ảnh nền
+        shadowDx: 12,       // Ánh sáng từ cửa sổ lớn bên trái
+        shadowDy: 18,
+        shadowBlur: 24,
+        shadowOpacity: 0.35
+    },
+    desk: {
+        bgPath: path.join(__dirname, '../assets/backgrounds/desk_clean.jpg'),
+        anchorXRatio: 0.48, // Nằm giữa mặt bàn
+        bottomYRatio: 0.64, // Đáy khung tựa lùi sâu vào giữa mặt bàn gỗ sồi
+        maxWRatio: 0.24,    // Tỷ lệ khung để bàn thanh lịch (24% ảnh)
+        maxHRatio: 0.40,    // Chiều cao tối đa khung để bàn
+        shadowDx: -10,      // Ánh sáng từ cửa sổ bên phải
+        shadowDy: 14,
+        shadowBlur: 18,
+        shadowOpacity: 0.38
+    }
+};
+
 class RoomMockupRenderer {
     constructor() {
         this.outputDir = process.env.OUTPUT_DIR || path.join(__dirname, '../../storage/prints');
@@ -47,149 +77,130 @@ class RoomMockupRenderer {
     }
 
     /**
-     * Dựng phối cảnh tranh + khung lên bối cảnh phòng khách
+     * Dựng phối cảnh tranh + khung lên bối cảnh phòng khách hoặc bàn làm việc
      * @param {Object} params
-     * @param {string|Buffer} params.background_url Ảnh nền phòng khách
-     * @param {string|Buffer} params.frame_url Ảnh phôi khung viền PNG trong suốt
+     * @param {string} [params.context] 'wall' hoặc 'desk'
+     * @param {string|Buffer} [params.background_url] Ảnh nền tùy biến (nếu có)
+     * @param {string|Buffer} [params.frame_url] Ảnh phôi khung viền PNG trong suốt chất lượng cao
      * @param {string|Buffer} params.artwork_base64 Ảnh canvas cá nhân hóa của khách
-     * @param {Object} params.transform { anchor_x, anchor_y, max_width, skew_y, rotate_deg }
+     * @param {Object} [params.transform] Cấu hình tùy biến thêm (nếu có)
      */
-    async renderMockup({ background_url, frame_url, artwork_base64, transform = {} }) {
-        const bgBuffer = await this.resolveBuffer(background_url);
-        if (!bgBuffer) throw new Error('Không thể tải ảnh nền phòng khách (background_url).');
+    async renderMockup({ context = 'wall', background_url, frame_url, artwork_base64, transform = {} }) {
+        const presetKey = (context === 'desk') ? 'desk' : 'wall';
+        const preset = PRESETS[presetKey];
 
-        const artworkBuffer = await this.resolveBuffer(artwork_base64);
-        if (!artworkBuffer) throw new Error('Không thể tải ảnh tác phẩm canvas (artwork_base64).');
+        // 1. Tải ảnh nền bối cảnh (ưu tiên ảnh preset cục bộ cực nhanh, fallback qua URL)
+        let bgBuffer = null;
+        if (fs.existsSync(preset.bgPath)) {
+            bgBuffer = fs.readFileSync(preset.bgPath);
+        } else if (background_url) {
+            bgBuffer = await this.resolveBuffer(background_url);
+        }
+        if (!bgBuffer) {
+            throw new Error(`Không thể nạp ảnh nền bối cảnh cho context: ${presetKey}`);
+        }
 
-        const frameBuffer = await this.resolveBuffer(frame_url);
-
-        // Đọc metadata của ảnh nền phòng khách
         const bgMeta = await sharp(bgBuffer).metadata();
         const bgW = bgMeta.width || 1200;
         const bgH = bgMeta.height || 896;
 
-        let framedArtworkBuffer = null;
+        // 2. Tải tác phẩm canvas của khách
+        const artworkBuffer = await this.resolveBuffer(artwork_base64);
+        if (!artworkBuffer) {
+            throw new Error('Không thể tải ảnh tác phẩm canvas (artwork_base64).');
+        }
 
+        // 3. Tải phôi khung PNG chất lượng cao (nếu khách chọn có khung)
+        const frameBuffer = await this.resolveBuffer(frame_url);
+
+        let framedArtworkBuffer = null;
         if (frameBuffer) {
-            // Lồng artwork vào lòng phôi khung PNG
+            // Lồng artwork vào lòng phôi khung PNG chất lượng cao ở độ phân giải gốc
             const frameMeta = await sharp(frameBuffer).metadata();
             const fW = frameMeta.width;
             const fH = frameMeta.height;
 
-            // Co giãn artwork vừa khít lòng khung
             const resizedArtwork = await sharp(artworkBuffer)
                 .resize(fW, fH, { fit: 'cover' })
                 .toBuffer();
 
-            // Ghép: Tranh ở lớp dưới, phôi khung (đục thủng lòng trong) ở lớp trên
+            // Lớp dưới: Artwork tranh của khách
+            // Lớp trên: Phôi khung viền PNG (đục thủng lòng trong)
             framedArtworkBuffer = await sharp(resizedArtwork)
                 .composite([{ input: frameBuffer, top: 0, left: 0 }])
                 .png()
                 .toBuffer();
         } else {
-            // Trường hợp không có khung (Canvas tràn viền / Chassis)
+            // Trường hợp Chassis (Tranh tràn viền không khung)
             framedArtworkBuffer = await sharp(artworkBuffer).png().toBuffer();
         }
 
-        // Đọc metadata tranh sau khi lồng khung
+        // 4. Thuật toán Đa Kích Thước Bounding Box (Aspect-Ratio Aware Scaling)
+        // Cân trọn vẹn: Khổ dọc (2:3, 3:4), Khổ ngang (3:2, 4:3, 16:9), Khổ vuông (1:1)
         const framedMeta = await sharp(framedArtworkBuffer).metadata();
         const aspect = framedMeta.width / (framedMeta.height || 1);
 
-        // Phân tích và chuẩn hóa transform config (hỗ trợ cả JSON string và corners 4 góc)
-        let tf = transform || {};
-        if (typeof tf === 'string') {
-            try { tf = JSON.parse(tf); } catch (e) { tf = {}; }
-        }
-
-        if (tf.corners && (!tf.anchor_x || !tf.anchor_y || !tf.max_width)) {
-            const tl = tf.corners.top_left;
-            const tr = tf.corners.top_right;
-            const br = tf.corners.bottom_right;
-            const bl = tf.corners.bottom_left;
-            if (tl && tr && br && bl) {
-                if (!tf.anchor_x) tf.anchor_x = Math.round((tl[0] + tr[0] + br[0] + bl[0]) / 4);
-                if (!tf.anchor_y) tf.anchor_y = Math.round((tl[1] + tr[1] + br[1] + bl[1]) / 4);
-                if (!tf.max_width) tf.max_width = Math.round(Math.max(tr[0] - tl[0], br[0] - bl[0]));
-                if (tf.rotate_deg === undefined) {
-                    tf.rotate_deg = Math.round(Math.atan2(tr[1] - tl[1], tr[0] - tl[0]) * 180 / Math.PI * 10) / 10;
-                }
-            }
-        }
-
-        // Tính kích thước hiển thị trên không gian (đa kích thước: Dọc 2:3, 3:4, Vuông 1:1, Ngang 3:2, 4:3)
-        const boxW = Math.max(100, Math.min(bgW, parseInt(tf.max_width) || 320));
-        const boxH = Math.max(100, Math.min(bgH, parseInt(tf.max_height) || Math.round(boxW * 1.5)));
+        const maxW = Math.round(bgW * preset.maxWRatio);
+        const maxH = Math.round(bgH * preset.maxHRatio);
 
         let finalW, finalH;
         if (aspect >= 1) {
-            // Khổ ngang hoặc vuông: ưu tiên vừa boxW, không vượt boxH
-            finalW = boxW;
+            // Tranh ngang hoặc vuông: ưu tiên bung chiều rộng trong maxW, khống chế maxH
+            finalW = maxW;
             finalH = Math.round(finalW / aspect);
-            if (finalH > boxH) {
-                finalH = boxH;
+            if (finalH > maxH) {
+                finalH = maxH;
                 finalW = Math.round(finalH * aspect);
             }
         } else {
-            // Khổ dọc: ưu tiên vừa boxH, không vượt boxW
-            finalH = boxH;
+            // Tranh dọc: ưu tiên bung chiều cao trong maxH, khống chế maxW
+            finalH = maxH;
             finalW = Math.round(finalH * aspect);
-            if (finalW > boxW) {
-                finalW = boxW;
+            if (finalW > maxW) {
+                finalW = maxW;
                 finalH = Math.round(finalW / aspect);
             }
         }
 
-        // Resize tranh có khung về kích thước hiển thị
+        // Co giãn khung tranh thành phẩm bằng thuật toán nội suy Lanczos3 siêu sắc nét
         let scaledFramed = await sharp(framedArtworkBuffer)
-            .resize(finalW, finalH, { fit: 'fill' })
+            .resize(finalW, finalH, { fit: 'fill', kernel: 'lanczos3' })
             .png()
             .toBuffer();
 
-        // Xử lý góc xoay nếu có
-        const rotateDeg = parseFloat(tf.rotate_deg) || 0;
-        if (Math.abs(rotateDeg) > 0.05) {
-            scaledFramed = await sharp(scaledFramed)
-                .rotate(rotateDeg, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                .png()
-                .toBuffer();
-        }
-
-        const rotatedMeta = await sharp(scaledFramed).metadata();
-        const actualW = rotatedMeta.width;
-        const actualH = rotatedMeta.height;
-
-        // Tọa độ định vị: Tựa chân bàn (bottom_y) hoặc treo tâm tường (anchor_x, anchor_y)
+        // 5. Xác định tọa độ đặt tranh
         let left, top;
-        if (tf.bottom_y) {
-            const bottomY = parseInt(tf.bottom_y);
-            const anchorX = parseInt(tf.anchor_x) || Math.round(bgW / 2);
-            left = Math.round(anchorX - (actualW / 2));
-            top = Math.round(bottomY - actualH);
+        if (preset.bottomYRatio) {
+            // Bối cảnh bàn: Neo cạnh đáy tựa vững vàng trên mặt bàn
+            const bottomY = Math.round(bgH * preset.bottomYRatio);
+            const anchorX = Math.round(bgW * preset.anchorXRatio);
+            left = Math.round(anchorX - (finalW / 2));
+            top = Math.round(bottomY - finalH);
         } else {
-            const anchorX = parseInt(tf.anchor_x) || Math.round(bgW * 0.5);
-            const anchorY = parseInt(tf.anchor_y) || Math.round(bgH * 0.36);
-            left = Math.round(anchorX - (actualW / 2));
-            top = Math.round(anchorY - (actualH / 2));
+            // Bối cảnh tường: Căn giữa mảng tường trên sofa
+            const anchorX = Math.round(bgW * preset.anchorXRatio);
+            const anchorY = Math.round(bgH * preset.anchorYRatio);
+            left = Math.round(anchorX - (finalW / 2));
+            top = Math.round(anchorY - (finalH / 2));
         }
 
-        // Ràng buộc không vượt quá mép ảnh nền
-        left = Math.max(0, Math.min(bgW - actualW, left));
-        top = Math.max(0, Math.min(bgH - actualH, top));
+        // Ràng buộc không tràn khỏi mép ảnh nền
+        left = Math.max(10, Math.min(bgW - finalW - 10, left));
+        top = Math.max(10, Math.min(bgH - finalH - 10, top));
 
-        // Tạo shadow mềm (đổ bóng chân thực) bên dưới khung tranh
-        const shadowPadding = 20;
+        // 6. Tạo bóng đổ tự nhiên đa tầng (Soft Realistic Drop-Shadow)
+        const shadowPadding = 40;
         const shadowSvg = Buffer.from(`
-            <svg width="${actualW + shadowPadding * 2}" height="${actualH + shadowPadding * 2}">
+            <svg width="${finalW + shadowPadding * 2}" height="${finalH + shadowPadding * 2}">
                 <defs>
-                    <filter id="shadow" x="-20%" y="-20%" width="150%" height="150%">
-                        <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000000" flood-opacity="0.35"/>
+                    <filter id="wallShadow" x="-30%" y="-30%" width="170%" height="170%">
+                        <feDropShadow dx="${preset.shadowDx}" dy="${preset.shadowDy}" stdDeviation="${preset.shadowBlur}" flood-color="#000000" flood-opacity="${preset.shadowOpacity}"/>
                     </filter>
                 </defs>
-                <rect x="${shadowPadding}" y="${shadowPadding}" width="${actualW}" height="${actualH}" rx="4" fill="black" filter="url(#shadow)"/>
+                <rect x="${shadowPadding}" y="${shadowPadding}" width="${finalW}" height="${finalH}" rx="3" fill="black" filter="url(#wallShadow)"/>
             </svg>
         `);
 
-        // Ghép shadow và tranh lên nền phòng khách
         const shadowLeft = Math.max(0, left - shadowPadding);
         const shadowTop = Math.max(0, top - shadowPadding);
 
@@ -198,12 +209,13 @@ class RoomMockupRenderer {
             { input: scaledFramed, top: top, left: left }
         ];
 
+        // 7. Hòa trộn ghép đè lên ảnh nền và nén xuất file JPEG chất lượng cao
         const finalComposite = await sharp(bgBuffer)
             .composite(compositeLayers)
-            .jpeg({ quality: 90, mozjpeg: true })
+            .jpeg({ quality: 92, mozjpeg: true })
             .toBuffer();
 
-        // Lưu file vào thư mục prints
+        // 8. Lưu file thành phẩm vào thư mục lưu trữ prints
         const hash = crypto.randomBytes(8).toString('hex');
         const filename = `mockup_room_${Date.now()}_${hash}.jpg`;
         const outputPath = path.join(this.outputDir, filename);
@@ -215,7 +227,8 @@ class RoomMockupRenderer {
             output_path: outputPath,
             mockup_url: `/prints/${filename}`,
             width: bgW,
-            height: bgH
+            height: bgH,
+            context: presetKey
         };
     }
 }

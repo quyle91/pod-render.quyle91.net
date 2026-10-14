@@ -183,11 +183,14 @@ router.get('/verify-auth', verifySecret, (req, res) => {
 router.post('/mockup-preview', verifySecret, async (req, res) => {
     try {
         const payload = req.body || {};
-        if (!payload.background_url || !payload.artwork_base64) {
+        if (!payload.artwork_base64) {
             return res.status(422).json({
                 success: false,
-                error: 'Thiếu tham số bắt buộc: background_url và artwork_base64'
+                error: 'Thiếu tham số bắt buộc: artwork_base64'
             });
+        }
+        if (!payload.context) {
+            payload.context = 'wall';
         }
 
         const roomMockupRenderer = require('../services/roomMockupRenderer');

@@ -116,10 +116,28 @@ class RoomMockupRenderer {
             }
         }
 
-        // Tính kích thước hiển thị trên tường (mặc định 310px ~ 30% bề ngang không gian)
-        const targetMaxWidth = Math.max(100, Math.min(bgW, parseInt(tf.max_width) || 310));
-        let finalW = targetMaxWidth;
-        let finalH = Math.round(finalW / aspect);
+        // Tính kích thước hiển thị trên không gian (đa kích thước: Dọc 2:3, 3:4, Vuông 1:1, Ngang 3:2, 4:3)
+        const boxW = Math.max(100, Math.min(bgW, parseInt(tf.max_width) || 320));
+        const boxH = Math.max(100, Math.min(bgH, parseInt(tf.max_height) || Math.round(boxW * 1.5)));
+
+        let finalW, finalH;
+        if (aspect >= 1) {
+            // Khổ ngang hoặc vuông: ưu tiên vừa boxW, không vượt boxH
+            finalW = boxW;
+            finalH = Math.round(finalW / aspect);
+            if (finalH > boxH) {
+                finalH = boxH;
+                finalW = Math.round(finalH * aspect);
+            }
+        } else {
+            // Khổ dọc: ưu tiên vừa boxH, không vượt boxW
+            finalH = boxH;
+            finalW = Math.round(finalH * aspect);
+            if (finalW > boxW) {
+                finalW = boxW;
+                finalH = Math.round(finalW / aspect);
+            }
+        }
 
         // Resize tranh có khung về kích thước hiển thị
         let scaledFramed = await sharp(framedArtworkBuffer)
@@ -140,12 +158,19 @@ class RoomMockupRenderer {
         const actualW = rotatedMeta.width;
         const actualH = rotatedMeta.height;
 
-        // Tọa độ tâm (anchor_x, anchor_y) chuyển thành tọa độ top-left
-        const anchorX = parseInt(tf.anchor_x) || Math.round(bgW * 0.65);
-        const anchorY = parseInt(tf.anchor_y) || Math.round(bgH * 0.30);
-
-        let left = Math.round(anchorX - (actualW / 2));
-        let top = Math.round(anchorY - (actualH / 2));
+        // Tọa độ định vị: Tựa chân bàn (bottom_y) hoặc treo tâm tường (anchor_x, anchor_y)
+        let left, top;
+        if (tf.bottom_y) {
+            const bottomY = parseInt(tf.bottom_y);
+            const anchorX = parseInt(tf.anchor_x) || Math.round(bgW / 2);
+            left = Math.round(anchorX - (actualW / 2));
+            top = Math.round(bottomY - actualH);
+        } else {
+            const anchorX = parseInt(tf.anchor_x) || Math.round(bgW * 0.5);
+            const anchorY = parseInt(tf.anchor_y) || Math.round(bgH * 0.36);
+            left = Math.round(anchorX - (actualW / 2));
+            top = Math.round(anchorY - (actualH / 2));
+        }
 
         // Ràng buộc không vượt quá mép ảnh nền
         left = Math.max(0, Math.min(bgW - actualW, left));

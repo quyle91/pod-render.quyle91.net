@@ -23,15 +23,14 @@ const PRESETS = {
     },
     desk: {
         bgPath: path.join(__dirname, '../assets/backgrounds/desk_clean.jpg'),
-        anchorXRatio: 0.44,    // Đặt trên mặt bàn gỗ sồi bên cạnh chậu sen đá
-        bottomYRatio: 0.54,    // Đáy khung chạm mặt bàn gỗ sồi (54% chiều cao ảnh)
-        maxSafeWidth: 220,     // Khổ khung để bàn thanh lịch vừa vặn
-        maxSafeHeight: 280,    // Chiều cao tối đa khung để bàn
-        angleDeg: -3.2,        // Góc xoay phối cảnh ăn khớp chiều nghiêng thớ gỗ mặt bàn
-        shadowDx: -8,          // Ánh sáng từ cửa sổ ban công bên phải
-        shadowDy: 14,
-        shadowBlur: 16,
-        shadowOpacity: 0.38
+        anchorXRatio: 0.65,    // Đặt ở vị trí 65% bên phải mặt bàn (chuẩn xác theo mẫu của Đạo Huynh)
+        bottomYRatio: 0.645,   // Đáy khung tranh tựa vững vàng trên mặt bàn gỗ sồi
+        maxSafeWidth: 160,     // Khổ khung để bàn nhỏ nhắn thanh lịch vừa vặn
+        maxSafeHeight: 220,    // Chiều cao tối đa khung để bàn
+        shadowDx: -8,          // Ánh sáng tự nhiên từ rèm cửa sổ bên phải
+        shadowDy: 10,
+        shadowBlur: 7,
+        shadowOpacity: 0.35
     }
 };
 
@@ -173,8 +172,8 @@ class RoomMockupRenderer {
             }
         } else {
             // Bối cảnh bàn làm việc: Khung để bàn nhỏ xinh, tựa trên mặt bàn gỗ sồi
-            const maxSafeW = preset.maxSafeWidth || 220;
-            const maxSafeH = preset.maxSafeHeight || 280;
+            const maxSafeW = preset.maxSafeWidth || 195;
+            const maxSafeH = preset.maxSafeHeight || 270;
 
             finalW = maxSafeW;
             finalH = Math.round(finalW / aspect);
@@ -200,58 +199,27 @@ class RoomMockupRenderer {
             .png()
             .toBuffer();
 
-        // Áp dụng góc xoay phối cảnh (Angle Adjustment) nếu có
-        let actualW = finalW;
-        let actualH = finalH;
-
-        if (preset.angleDeg) {
-            scaledFramed = await sharp(scaledFramed)
-                .rotate(preset.angleDeg, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                .png()
-                .toBuffer();
-
-            const rotatedMeta = await sharp(scaledFramed).metadata();
-            actualW = rotatedMeta.width;
-            actualH = rotatedMeta.height;
-
-            // Điều chỉnh lại left, top sau khi xoay để tâm giữ nguyên
-            left = left - Math.round((actualW - finalW) / 2);
-            top = top - Math.round((actualH - finalH) / 2);
-        }
-
-        // Ràng buộc không tràn khỏi mép ảnh nền
-        left = Math.max(10, Math.min(bgW - actualW - 10, left));
-        top = Math.max(10, Math.min(bgH - actualH - 10, top));
-
-        // 5. Tạo bóng đổ tự nhiên đa tầng (Soft Realistic Drop-Shadow xoay theo phối cảnh)
-        const shadowPadding = 50;
-        const svgW = actualW + shadowPadding * 2;
-        const svgH = actualH + shadowPadding * 2;
-        const centerX = svgW / 2;
-        const centerY = svgH / 2;
-        const angle = preset.angleDeg || 0;
-
-        const rectX = centerX + preset.shadowDx - (finalW / 2);
-        const rectY = centerY + preset.shadowDy - (finalH / 2);
-        const rotCenterX = centerX + preset.shadowDx;
-        const rotCenterY = centerY + preset.shadowDy;
+        // 5. Tạo bóng đổ mềm tự nhiên (Soft Realistic Drop-Shadow)
+        const shadowPadding = 40;
+        const svgW = finalW + shadowPadding * 2;
+        const svgH = finalH + shadowPadding * 2;
 
         const shadowSvg = Buffer.from(`
             <svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="${preset.shadowBlur}"/>
+                        <feDropShadow dx="${preset.shadowDx}" dy="${preset.shadowDy}" stdDeviation="${preset.shadowBlur}" flood-color="#000000" flood-opacity="${preset.shadowOpacity}"/>
                     </filter>
                 </defs>
-                <rect x="${rectX}" y="${rectY}" width="${finalW}" height="${finalH}" rx="4"
-                      transform="rotate(${angle}, ${rotCenterX}, ${rotCenterY})"
-                      fill="rgba(0, 0, 0, ${preset.shadowOpacity})"
-                      filter="url(#softShadow)"/>
+                <rect x="${shadowPadding}" y="${shadowPadding}" width="${finalW}" height="${finalH}" rx="2" fill="black" filter="url(#softShadow)"/>
             </svg>
         `);
 
-        const shadowLeft = Math.max(0, left - shadowPadding);
-        const shadowTop = Math.max(0, top - shadowPadding);
+        left = Math.max(10, Math.min(bgW - finalW - 10, left));
+        top = Math.max(10, Math.min(bgH - finalH - 10, top));
+
+        const shadowLeft = left - shadowPadding;
+        const shadowTop = top - shadowPadding;
 
         const compositeLayers = [
             { input: shadowSvg, top: shadowTop, left: shadowLeft },

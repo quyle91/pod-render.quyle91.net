@@ -95,8 +95,29 @@ class RoomMockupRenderer {
         const framedMeta = await sharp(framedArtworkBuffer).metadata();
         const aspect = framedMeta.width / (framedMeta.height || 1);
 
-        // Tính kích thước hiển thị trên tường
-        const targetMaxWidth = Math.max(100, Math.min(bgW, parseInt(transform.max_width) || 600));
+        // Phân tích và chuẩn hóa transform config (hỗ trợ cả JSON string và corners 4 góc)
+        let tf = transform || {};
+        if (typeof tf === 'string') {
+            try { tf = JSON.parse(tf); } catch (e) { tf = {}; }
+        }
+
+        if (tf.corners && (!tf.anchor_x || !tf.anchor_y || !tf.max_width)) {
+            const tl = tf.corners.top_left;
+            const tr = tf.corners.top_right;
+            const br = tf.corners.bottom_right;
+            const bl = tf.corners.bottom_left;
+            if (tl && tr && br && bl) {
+                if (!tf.anchor_x) tf.anchor_x = Math.round((tl[0] + tr[0] + br[0] + bl[0]) / 4);
+                if (!tf.anchor_y) tf.anchor_y = Math.round((tl[1] + tr[1] + br[1] + bl[1]) / 4);
+                if (!tf.max_width) tf.max_width = Math.round(Math.max(tr[0] - tl[0], br[0] - bl[0]));
+                if (tf.rotate_deg === undefined) {
+                    tf.rotate_deg = Math.round(Math.atan2(tr[1] - tl[1], tr[0] - tl[0]) * 180 / Math.PI * 10) / 10;
+                }
+            }
+        }
+
+        // Tính kích thước hiển thị trên tường (mặc định 310px ~ 30% bề ngang không gian)
+        const targetMaxWidth = Math.max(100, Math.min(bgW, parseInt(tf.max_width) || 310));
         let finalW = targetMaxWidth;
         let finalH = Math.round(finalW / aspect);
 
@@ -107,7 +128,7 @@ class RoomMockupRenderer {
             .toBuffer();
 
         // Xử lý góc xoay nếu có
-        const rotateDeg = parseFloat(transform.rotate_deg) || 0;
+        const rotateDeg = parseFloat(tf.rotate_deg) || 0;
         if (Math.abs(rotateDeg) > 0.05) {
             scaledFramed = await sharp(scaledFramed)
                 .rotate(rotateDeg, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -120,8 +141,8 @@ class RoomMockupRenderer {
         const actualH = rotatedMeta.height;
 
         // Tọa độ tâm (anchor_x, anchor_y) chuyển thành tọa độ top-left
-        const anchorX = parseInt(transform.anchor_x) || Math.round(bgW / 2);
-        const anchorY = parseInt(transform.anchor_y) || Math.round(bgH / 2.5);
+        const anchorX = parseInt(tf.anchor_x) || Math.round(bgW * 0.65);
+        const anchorY = parseInt(tf.anchor_y) || Math.round(bgH * 0.30);
 
         let left = Math.round(anchorX - (actualW / 2));
         let top = Math.round(anchorY - (actualH / 2));

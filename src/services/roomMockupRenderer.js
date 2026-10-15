@@ -271,32 +271,135 @@ class RoomMockupRenderer {
             .png()
             .toBuffer();
 
-        // 5. Tạo bóng đổ mềm tự nhiên (Soft Realistic Drop-Shadow)
-        const shadowPadding = 40;
-        const svgW = finalW + shadowPadding * 2;
-        const svgH = finalH + shadowPadding * 2;
-
-        const shadowSvg = Buffer.from(`
-            <svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="${preset.shadowDx}" dy="${preset.shadowDy}" stdDeviation="${preset.shadowBlur}" flood-color="#000000" flood-opacity="${preset.shadowOpacity}"/>
-                    </filter>
-                </defs>
-                <rect x="${shadowPadding}" y="${shadowPadding}" width="${finalW}" height="${finalH}" rx="2" fill="black" filter="url(#softShadow)"/>
-            </svg>
-        `);
-
+        // 5. Tạo bóng đổ chuyên biệt theo bối cảnh (Treo Tường vs Mặt Bàn)
         left = Math.max(10, Math.min(bgW - finalW - 10, left));
         top = Math.max(10, Math.min(bgH - finalH - 10, top));
 
-        const shadowLeft = left - shadowPadding;
-        const shadowTop = top - shadowPadding;
+        let compositeLayers = [];
 
-        const compositeLayers = [
-            { input: shadowSvg, top: shadowTop, left: shadowLeft },
-            { input: scaledFramed, top: top, left: left }
-        ];
+        if (presetKey === 'wall') {
+            // ========================================================
+            // BỐI CẢNH TREO TƯỜNG (WALL): Bóng quang học 2 tầng mềm tự nhiên
+            // Tầng 1: Contact shadow bám sát mép viền (tạo độ dày khung 2cm)
+            // Tầng 2: Soft diffuse shadow lan nhẹ từ cửa sổ lớn bên trái
+            // ========================================================
+            const shadowPadding = 50;
+            const svgW = finalW + shadowPadding * 2;
+            const svgH = finalH + shadowPadding * 2;
+
+            const wallShadowSvg = Buffer.from(`
+                <svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <filter id="wallShadowMulti" x="-40%" y="-40%" width="180%" height="180%">
+                            <!-- Tầng 1: Contact shadow sát mép viền tranh -->
+                            <feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.25"/>
+                            <!-- Tầng 2: Soft Diffuse shadow từ ánh sáng cửa sổ phòng khách bên trái -->
+                            <feDropShadow dx="15" dy="22" stdDeviation="24" flood-color="#1e293b" flood-opacity="0.14"/>
+                        </filter>
+                    </defs>
+                    <rect x="${shadowPadding}" y="${shadowPadding}" width="${finalW}" height="${finalH}" rx="3" fill="black" filter="url(#wallShadowMulti)"/>
+                </svg>
+            `);
+
+            const shadowLeft = left - shadowPadding;
+            const shadowTop = top - shadowPadding;
+
+            compositeLayers = [
+                { input: wallShadowSvg, top: shadowTop, left: shadowLeft },
+                { input: scaledFramed, top: top, left: left }
+            ];
+        } else {
+            // ========================================================
+            // BỐI CẢNH BÀN LÀM VIỆC (DESK):
+            // 1. Chân chống khung tranh (Kickstand) nghiêng ra sau bên trái
+            // 2. Hình chữ nhật đổ bóng trực tiếp trên mặt bàn gỗ (Ground Cast Shadow)
+            // ========================================================
+            const bottomY = top + finalH;
+
+            // A. Vẽ Chân Chống Khung Tranh (Kickstand) phía sau
+            const legTopX = Math.round(left + finalW * 0.32);
+            const legTopY = Math.round(top + finalH * 0.50);
+            const legFootX = Math.round(left - finalW * 0.16);
+            const legFootY = Math.round(bottomY - 20);
+
+            const legSvgW = Math.max(40, (legTopX - legFootX) + 30);
+            const legSvgH = Math.max(40, (bottomY - legTopY) + 20);
+            const legOriginX = legFootX - 10;
+            const legOriginY = legTopY - 5;
+
+            const relTopX1 = Math.max(0, (legTopX - legOriginX) - 6);
+            const relTopX2 = (legTopX - legOriginX) + 8;
+            const relTopY = (legTopY - legOriginY);
+            const relFootX1 = Math.max(2, (legFootX - legOriginX));
+            const relFootX2 = (legFootX - legOriginX) + 16;
+            const relFootY = (legFootY - legOriginY);
+
+            const kickstandSvg = Buffer.from(`
+                <svg width="${legSvgW}" height="${legSvgH}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="legGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#0f172a" stop-opacity="0.95"/>
+                            <stop offset="70%" stop-color="#334155" stop-opacity="0.90"/>
+                            <stop offset="100%" stop-color="#1e293b" stop-opacity="0.95"/>
+                        </linearGradient>
+                        <filter id="legShadow" x="-30%" y="-30%" width="160%" height="160%">
+                            <feDropShadow dx="-4" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.45"/>
+                        </filter>
+                    </defs>
+                    <polygon points="${relTopX1},${relTopY} ${relTopX2},${relTopY} ${relFootX2},${relFootY} ${relFootX1},${relFootY}" 
+                             fill="url(#legGrad)" filter="url(#legShadow)"/>
+                    <polygon points="${relFootX1},${relFootY} ${relFootX2},${relFootY} ${relFootX2 + 3},${relFootY + 3} ${relFootX1 - 2},${relFootY + 3}" 
+                             fill="#090d16"/>
+                </svg>
+            `);
+
+            // B. Vẽ Bóng Đổ Cạnh Dưới Tranh Trên Mặt Bàn (Tabletop Ground Shadow)
+            const shadowPad = 35;
+            const deskShadowW = finalW + 90 + shadowPad * 2;
+            const deskShadowH = 50 + shadowPad * 2;
+
+            const deskShadowSvg = Buffer.from(`
+                <svg width="${deskShadowW}" height="${deskShadowH}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="groundShadowGrad" x1="85%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#090d16" stop-opacity="0.50"/>
+                            <stop offset="35%" stop-color="#1c1917" stop-opacity="0.32"/>
+                            <stop offset="75%" stop-color="#292524" stop-opacity="0.12"/>
+                            <stop offset="100%" stop-color="#292524" stop-opacity="0.0"/>
+                        </linearGradient>
+                        <linearGradient id="contactEdgeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#000000" stop-opacity="0.80"/>
+                            <stop offset="100%" stop-color="#000000" stop-opacity="0.0"/>
+                        </linearGradient>
+                        <filter id="deskBlur" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.5"/>
+                        </filter>
+                    </defs>
+
+                    <!-- 1. Dải bóng tiếp xúc đáy tranh bám sát mặt bàn cực đậm -->
+                    <rect x="${shadowPad + 50}" y="${shadowPad}" width="${finalW}" height="5" rx="1.5" fill="url(#contactEdgeGrad)"/>
+
+                    <!-- 2. Hình thang chữ nhật dẹt đổ bóng trên mặt bàn gỗ sang trái (ngược cửa sổ phải) -->
+                    <polygon points="${shadowPad + 50 + finalW},${shadowPad + 1} 
+                                     ${shadowPad + 50},${shadowPad + 1} 
+                                     ${shadowPad + 5},${shadowPad + 24} 
+                                     ${shadowPad + finalW - 10},${shadowPad + 24}" 
+                             fill="url(#groundShadowGrad)" filter="url(#deskBlur)"/>
+
+                    <!-- 3. Vệt bóng nhỏ tiếp xúc chân chống trên mặt bàn -->
+                    <ellipse cx="${shadowPad + 25}" cy="${shadowPad - 8}" rx="14" ry="4" fill="#000000" fill-opacity="0.35" filter="url(#deskBlur)"/>
+                </svg>
+            `);
+
+            const deskShadowLeft = (left - 50) - shadowPad;
+            const deskShadowTop = bottomY - shadowPad;
+
+            compositeLayers = [
+                { input: kickstandSvg, top: legOriginY, left: legOriginX },
+                { input: deskShadowSvg, top: deskShadowTop, left: deskShadowLeft },
+                { input: scaledFramed, top: top, left: left }
+            ];
+        }
 
         // 6. Hòa trộn ghép đè lên ảnh nền và nén xuất file JPEG chất lượng cao
         const finalComposite = await sharp(bgBuffer)

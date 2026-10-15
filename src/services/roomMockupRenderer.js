@@ -79,7 +79,7 @@ class RoomMockupRenderer {
     /**
      * Dựng phối cảnh tranh + khung lên bối cảnh phòng khách hoặc bàn làm việc
      */
-    async renderMockup({ context = 'wall', orientation = 'portrait', canvas_size_code, background_url, frame_url, artwork_base64, transform = {} }) {
+    async renderMockup({ context = 'wall', orientation = 'portrait', canvas_size_code, width_cm, height_cm, background_url, frame_url, artwork_base64, transform = {} }) {
         const presetKey = (context === 'desk') ? 'desk' : 'wall';
         const preset = PRESETS[presetKey];
 
@@ -139,28 +139,81 @@ class RoomMockupRenderer {
             framedArtworkBuffer = await sharp(artworkBuffer).png().toBuffer();
         }
 
-        // 4. Thuật toán Đa Kích Thước Bounding Box & Chống Đụng Trần Tuyệt Đối
+        // 4. Thuật toán Đa Kích Thước Bounding Box & Tỷ Lệ Thực Tế Tường Phòng Khách
         const framedMeta = await sharp(framedArtworkBuffer).metadata();
         const aspect = framedMeta.width / (framedMeta.height || 1);
 
         let finalW, finalH, left, top;
 
         if (presetKey === 'wall') {
-            // Bối cảnh tường phòng khách: Khống chế nghiêm ngặt khoảng an toàn trần nhà
+            // Khống chế nghiêm ngặt khoảng an toàn trần nhà và ghế sofa
             const minCeiling = preset.minCeilingMargin || 150;
             const maxSofa = preset.maxSofaMargin || 520;
-            const maxSafeH = maxSofa - minCeiling; // 370px
+            const maxSafeH = maxSofa - minCeiling; // 370px (dành cho khổ đại sảnh 80x120 hoặc 100x100)
             const maxSafeW = preset.maxSafeWidth || 420;
 
-            let targetW = maxSafeW;
-            let targetH = Math.round(targetW / aspect);
+            // Phân giải kích thước thực tế theo cm từ width_cm, height_cm hoặc canvas_size_code
+            let wCm = Number(width_cm) || 0;
+            let hCm = Number(height_cm) || 0;
 
-            // Nếu chiều cao vượt quá khoảng an toàn trần-sofa: scale nhỏ lại theo chiều cao
+            if ((!wCm || !hCm) && canvas_size_code) {
+                const codeStr = String(canvas_size_code).trim();
+                if (codeStr.length === 4) {
+                    wCm = parseInt(codeStr.substring(0, 2), 10);
+                    hCm = parseInt(codeStr.substring(2, 4), 10);
+                } else if (codeStr.length === 5) {
+                    if (codeStr.endsWith('100') || codeStr.endsWith('120')) {
+                        wCm = parseInt(codeStr.substring(0, 2), 10);
+                        hCm = parseInt(codeStr.substring(2), 10);
+                    } else {
+                        wCm = parseInt(codeStr.substring(0, 2), 10);
+                        hCm = parseInt(codeStr.substring(2), 10);
+                    }
+                } else if (codeStr.length === 6) {
+                    wCm = parseInt(codeStr.substring(0, 3), 10);
+                    hCm = parseInt(codeStr.substring(3), 10);
+                }
+            }
+
+            if (wCm > 0 && hCm > 0) {
+                if (orientation === 'landscape' && wCm < hCm) {
+                    [wCm, hCm] = [hCm, wCm];
+                } else if (orientation === 'portrait' && wCm > hCm) {
+                    [wCm, hCm] = [hCm, wCm];
+                }
+            }
+
+            let targetW, targetH;
+
+            // Hệ số tỷ lệ chuẩn phòng khách: 3.65 px/cm
+            // Khổ 40x60: chiều cao ~219px (nhỏ gọn, thanh thoát, cân xứng với sofa 2.1m)
+            // Khổ 80x120: chiều cao ~370px (chạm trần an toàn)
+            if (wCm > 0 && hCm > 0) {
+                const pxPerCm = 3.65;
+                targetW = Math.round(wCm * pxPerCm);
+                targetH = Math.round(hCm * pxPerCm);
+            } else {
+                // Fallback nếu không có kích thước: mặc định khổ trung bình thanh thoát
+                if (aspect < 0.9) {
+                    // Dọc (Portrait) - chuẩn 40x60
+                    targetH = 220;
+                    targetW = Math.round(targetH * aspect);
+                } else if (aspect > 1.15) {
+                    // Ngang (Landscape) - chuẩn 60x40
+                    targetW = 240;
+                    targetH = Math.round(targetW / aspect);
+                } else {
+                    // Vuông (Square) - chuẩn 50x50
+                    targetW = 190;
+                    targetH = 190;
+                }
+            }
+
+            // Chốt chặn trần và tường an toàn
             if (targetH > maxSafeH) {
                 targetH = maxSafeH;
                 targetW = Math.round(targetH * aspect);
             }
-            // Nếu chiều rộng vượt quá: scale nhỏ lại theo chiều rộng
             if (targetW > maxSafeW) {
                 targetW = maxSafeW;
                 targetH = Math.round(targetW / aspect);
@@ -169,17 +222,16 @@ class RoomMockupRenderer {
             finalW = targetW;
             finalH = targetH;
 
-            // Tâm cân đối chính giữa khoảng cách trần và sofa
-            const centerY = Math.round((minCeiling + maxSofa) / 2); // 335px
-            const centerX = Math.round(bgW * preset.anchorXRatio);  // 512px
+            // Tâm cân đối mảng tường phòng khách (ngay tầm mắt tự nhiên)
+            const centerY = Math.round((minCeiling + maxSofa) / 2) + 10; // ~345px
+            const centerX = Math.round(bgW * preset.anchorXRatio);       // 512px
 
             left = Math.round(centerX - (finalW / 2));
             top = Math.round(centerY - (finalH / 2));
 
-            // Chốt an toàn kép: Luôn đảm bảo top >= minCeiling
-            if (top < minCeiling) {
-                top = minCeiling;
-            }
+            // Đảm bảo không đụng trần hoặc chạm sát sofa
+            if (top < minCeiling) top = minCeiling;
+            if (top + finalH > maxSofa) top = maxSofa - finalH;
         } else {
             // Bối cảnh bàn làm việc: Khung để bàn (Tự động thích ứng Khổ Dọc / Ngang / Vuông)
             let maxSafeW = preset.maxSafeWidth || 240;

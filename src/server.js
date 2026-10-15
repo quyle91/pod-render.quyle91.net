@@ -155,6 +155,6 @@ app.listen(PORT, '0.0.0.0', async () => {
     } catch (dbErr) {
         console.error('[POD Backend] Failed to initialize Database:', dbErr);
     }
-    // Start automatic storage cleaner worker (runs every 30 minutes, deletes test & expired files)
-    storageCleaner.startScheduledCleanup(30);
+    // Start automatic storage cleaner worker (runs every 15 minutes, deletes test & expired files)
+    storageCleaner.startScheduledCleanup(15);
 });

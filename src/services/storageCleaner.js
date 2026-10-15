@@ -3,46 +3,51 @@ const fs = require('fs');
 
 /**
  * StorageCleaner Service
- * Automatically prevents disk exhaustion on the render worker.
- * Features:
- *  1. Age-based eviction: Purges temp files older than MAX_AGE_HOURS.
- *  2. Quota-based FIFO eviction: If directory size exceeds MAX_STORAGE_MB, removes oldest files first.
- *  3. Periodic background worker: Runs cleanup on a configurable schedule (default: every 30 minutes).
+ * Tự động ngăn chặn cạn kiệt dung lượng đĩa trên máy chủ Render (Auto Cleanup & Lifecycle Management).
+ * 
+ * Quy tắc phân cấp vòng đời lưu trữ (Storage Tiering):
+ *  1. File Mockup Preview (mockup_room_*, preview_*): Tuổi thọ tối đa 30 phút, tối đa giữ 30 files gần nhất (FIFO).
+ *  2. File Test Render Studio (order_test_*): Tuổi thọ tối đa 2 giờ.
+ *  3. File Lệnh In Thực Tế Của Khách (order_print_*, order_zip_*): Tuổi thọ 24 giờ để xưởng in tải về.
+ *  4. Hạn mức tổng dung lượng (Quota Cap): Mặc định tối đa 2GB, tự động thanh lý các file cũ nhất nếu chạm trần.
+ *  5. Tiến trình quét ngầm định kỳ: Mặc định mỗi 15 phút quét một lần.
  */
 class StorageCleaner {
     constructor() {
         this.printsDir = process.env.OUTPUT_DIR || path.join(__dirname, '../../storage/prints');
         this.maxAgeHours = parseInt(process.env.STORAGE_MAX_AGE_HOURS || '24', 10);
         this.testMaxAgeHours = parseInt(process.env.STORAGE_TEST_MAX_AGE_HOURS || '2', 10);
-        this.maxStorageMb = parseInt(process.env.STORAGE_MAX_MB || '2048', 10); // 2GB default cap
+        this.previewMaxAgeMinutes = parseInt(process.env.STORAGE_PREVIEW_MAX_AGE_MINUTES || '30', 10); // 30 phút cho preview
+        this.maxPreviewFiles = parseInt(process.env.STORAGE_MAX_PREVIEW_FILES || '30', 10);             // Tối đa 30 ảnh preview
+        this.maxStorageMb = parseInt(process.env.STORAGE_MAX_MB || '2048', 10);                         // 2GB default cap
         this.timer = null;
     }
 
     /**
-     * Start scheduled background cleanup.
-     * @param {number} intervalMinutes 
+     * Khởi động tiến trình quét ngầm định kỳ
+     * @param {number} intervalMinutes Mặc định 15 phút
      */
-    startScheduledCleanup(intervalMinutes = 30) {
+    startScheduledCleanup(intervalMinutes = 15) {
         if (this.timer) {
             clearInterval(this.timer);
         }
 
-        // Run once immediately at startup
+        // Quét ngay một lần sau 3 giây khi server khởi động
         setTimeout(() => {
             this.runCleanup().catch(err => console.error('[StorageCleaner] Startup cleanup error:', err.message));
-        }, 5000);
+        }, 3000);
 
-        // Schedule periodic sweeps
+        // Lập lịch quét định kỳ
         const ms = Math.max(5, intervalMinutes) * 60 * 1000;
         this.timer = setInterval(() => {
             this.runCleanup().catch(err => console.error('[StorageCleaner] Scheduled sweep error:', err.message));
         }, ms);
 
-        console.log(`[StorageCleaner] Background worker started: sweeps every ${intervalMinutes} min, max age: ${this.maxAgeHours}h, quota cap: ${this.maxStorageMb}MB.`);
+        console.log(`[StorageCleaner] Background worker started: sweeps every ${intervalMinutes} min (Preview max-age: ${this.previewMaxAgeMinutes}m, Max preview files: ${this.maxPreviewFiles}, Quota: ${this.maxStorageMb}MB).`);
     }
 
     /**
-     * Perform complete cleanup sweep.
+     * Thực thi một chu kỳ quét và dọn rác hoàn chỉnh
      * @returns {Promise<{deletedFiles: number, freedBytes: number, remainingFiles: number, remainingMb: number}>}
      */
     async runCleanup() {
@@ -53,12 +58,14 @@ class StorageCleaner {
         const now = Date.now();
         const maxAgeMs = this.maxAgeHours * 60 * 60 * 1000;
         const testMaxAgeMs = this.testMaxAgeHours * 60 * 60 * 1000;
+        const previewMaxAgeMs = this.previewMaxAgeMinutes * 60 * 1000;
 
         const dirents = fs.readdirSync(this.printsDir, { withFileTypes: true });
         let deletedFiles = 0;
         let freedBytes = 0;
 
         const fileStats = [];
+        const previewStats = [];
 
         for (const dirent of dirents) {
             if (!dirent.isFile()) continue;
@@ -67,35 +74,71 @@ class StorageCleaner {
             try {
                 const stat = fs.statSync(filePath);
                 const ageMs = now - stat.mtimeMs;
-                const isTestFile = dirent.name.includes('order_test_') || dirent.name.includes('preview');
 
-                // 1. Evict files older than max allowed age (test files purged faster)
-                const fileAllowedAge = isTestFile ? testMaxAgeMs : maxAgeMs;
-                if (ageMs > fileAllowedAge) {
+                const isMockupPreview = dirent.name.startsWith('mockup_room_') || 
+                                        dirent.name.startsWith('preview_') || 
+                                        dirent.name.includes('_preview');
+                const isTestFile = dirent.name.includes('order_test_');
+
+                // 1. Phân loại tuổi thọ tối đa cho phép theo từng loại file
+                let fileAllowedAgeMs = maxAgeMs;
+                if (isMockupPreview) {
+                    fileAllowedAgeMs = previewMaxAgeMs;
+                } else if (isTestFile) {
+                    fileAllowedAgeMs = testMaxAgeMs;
+                }
+
+                // Nếu đã quá hạn tuổi thọ: xóa ngay lập tức
+                if (ageMs > fileAllowedAgeMs) {
                     fs.unlinkSync(filePath);
                     deletedFiles++;
                     freedBytes += stat.size;
                     continue;
                 }
 
-                fileStats.push({
+                const fileItem = {
                     name: dirent.name,
                     path: filePath,
                     size: stat.size,
-                    mtime: stat.mtimeMs
-                });
+                    mtime: stat.mtimeMs,
+                    isMockupPreview
+                };
+
+                fileStats.push(fileItem);
+                if (isMockupPreview) {
+                    previewStats.push(fileItem);
+                }
             } catch (err) {
-                // Ignore transient file locks
+                // Bỏ qua nếu file đang bị lock tạm thời
             }
         }
 
-        // 2. FIFO Quota enforcement: if remaining storage exceeds maxStorageMb
+        // 2. Chốt chặn số lượng file Mockup Preview (Tối đa chỉ giữ maxPreviewFiles = 30 files gần nhất)
+        if (previewStats.length > this.maxPreviewFiles) {
+            // Sắp xếp theo mtime tăng dần: file cũ nhất lên đầu
+            previewStats.sort((a, b) => a.mtime - b.mtime);
+            const excessCount = previewStats.length - this.maxPreviewFiles;
+
+            for (let i = 0; i < excessCount; i++) {
+                const victim = previewStats[i];
+                try {
+                    fs.unlinkSync(victim.path);
+                    deletedFiles++;
+                    freedBytes += victim.size;
+
+                    // Loại khỏi fileStats
+                    const idx = fileStats.findIndex(f => f.path === victim.path);
+                    if (idx !== -1) fileStats.splice(idx, 1);
+                } catch (err) {}
+            }
+        }
+
+        // 3. Chốt chặn tổng dung lượng đĩa (FIFO Quota enforcement: nếu vượt quá maxStorageMb)
         let currentTotalBytes = fileStats.reduce((sum, f) => sum + f.size, 0);
         const maxQuotaBytes = this.maxStorageMb * 1024 * 1024;
-        const targetQuotaBytes = Math.round(maxQuotaBytes * 0.7); // Purge down to 70% capacity
+        const targetQuotaBytes = Math.round(maxQuotaBytes * 0.7); // Dọn về 70% dung lượng
 
         if (currentTotalBytes > maxQuotaBytes) {
-            // Sort oldest files first
             fileStats.sort((a, b) => a.mtime - b.mtime);
 
             while (currentTotalBytes > targetQuotaBytes && fileStats.length > 0) {

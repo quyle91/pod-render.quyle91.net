@@ -310,20 +310,15 @@ class RoomMockupRenderer {
         } else {
             // ========================================================
             // BỐI CẢNH BÀN LÀM VIỆC (DESK):
-            // 1. Bóng đứng sau ảnh: Soft drop shadow ngay sau lưng khung tranh
-            // 2. Chân chống khung tranh (Kickstand) nghiêng tựa phía sau
-            // 3. Bóng đổ lên bàn về phía sau: Đổ từ chân tranh lùi về phía sau bàn
-            //    và lệch sang bên trái (ló ra khỏi thân tranh để thấy rõ chiều sâu)
+            // 1. Duy nhất 1 hình mờ đổ lên bàn về phía sau (mờ êm dịu, không shadow viền)
+            // 2. Chân chống phía sau tựa xuống bàn (không shadow)
             // ========================================================
             const bottomY = top + finalH;
 
-            // A. Bóng đổ trên mặt bàn lùi về phía sau (Rear Tabletop Cast Shadow)
-            // Chiều sâu lùi về sau bàn (hướng Y đi lên)
-            const shadowDepth = Math.round(Math.min(110, Math.max(55, finalH * 0.35)));
-            // Độ lệch sang bên trái (để lộ vệt bóng rõ nét trên mặt bàn gỗ ngược hướng sáng cửa sổ phải)
-            const shadowSkewLeft = Math.round(Math.min(110, Math.max(55, finalW * 0.42)));
-            // Độ dôi nhẹ sang bên phải phía sau
-            const shadowSkewRight = Math.round(Math.min(30, Math.max(10, finalW * 0.12)));
+            // A. Duy nhất 1 hình mờ đổ lên mặt bàn lùi về phía sau (Rear Tabletop Soft Blur)
+            const shadowDepth = Math.round(Math.min(95, Math.max(45, finalH * 0.30)));
+            const shadowSkewLeft = Math.round(Math.min(90, Math.max(45, finalW * 0.36)));
+            const shadowSkewRight = Math.round(Math.min(25, Math.max(10, finalW * 0.10)));
 
             const shadowPad = 40;
             const deskShadowW = finalW + shadowSkewLeft + shadowSkewRight + shadowPad * 2;
@@ -333,55 +328,39 @@ class RoomMockupRenderer {
             const deskShadowLeft = (left - shadowSkewLeft) - shadowPad;
 
             // Tọa độ các đỉnh bóng đổ hình thang trên mặt bàn:
-            // Đáy trước (tiếp giáp chân tranh trên mặt bàn):
-            const sFrontLeftX = shadowPad + shadowSkewLeft - 6;
-            const sFrontRightX = shadowPad + shadowSkewLeft + finalW + 6;
+            const sFrontLeftX = shadowPad + shadowSkewLeft;
+            const sFrontRightX = shadowPad + shadowSkewLeft + finalW;
             const sFrontY = shadowPad + shadowDepth;
 
-            // Đáy sau (lùi về phía sau bàn, chếch mạnh sang trái):
             const sBackLeftX = shadowPad;
             const sBackRightX = shadowPad + shadowSkewLeft + finalW - shadowSkewRight;
             const sBackY = shadowPad;
 
-            // Tọa độ chân tiếp xúc của kickstand trong hệ tọa độ SVG bóng mặt bàn:
-            const kickstandFootRelX = shadowPad + shadowSkewLeft - Math.min(32, finalW * 0.16);
-            const kickstandFootRelY = shadowPad + shadowDepth - Math.round(shadowDepth * 0.45);
-
             const deskShadowSvg = Buffer.from(`
                 <svg width="${deskShadowW}" height="${deskShadowH}" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <!-- Gradient bóng đổ từ chân tranh lùi dần về phía sau mờ êm -->
-                        <linearGradient id="rearGroundShadow" x1="75%" y1="100%" x2="15%" y2="0%">
-                            <stop offset="0%" stop-color="#0a0806" stop-opacity="0.80"/>
-                            <stop offset="25%" stop-color="#14100c" stop-opacity="0.65"/>
-                            <stop offset="55%" stop-color="#211b16" stop-opacity="0.42"/>
-                            <stop offset="85%" stop-color="#2e251f" stop-opacity="0.18"/>
-                            <stop offset="100%" stop-color="#2e251f" stop-opacity="0.0"/>
+                        <!-- Gradient bóng mờ êm dịu từ chân tranh lùi về phía sau -->
+                        <linearGradient id="rearGroundShadow" x1="70%" y1="100%" x2="20%" y2="0%">
+                            <stop offset="0%" stop-color="#14100c" stop-opacity="0.55"/>
+                            <stop offset="35%" stop-color="#1e1812" stop-opacity="0.38"/>
+                            <stop offset="70%" stop-color="#2a221a" stop-opacity="0.18"/>
+                            <stop offset="100%" stop-color="#2a221a" stop-opacity="0.0"/>
                         </linearGradient>
                         <filter id="rearDeskBlur" x="-30%" y="-30%" width="160%" height="160%">
-                            <feGaussianBlur stdDeviation="5.0"/>
-                        </filter>
-                        <filter id="contactBlur" x="-20%" y="-20%" width="140%" height="140%">
-                            <feGaussianBlur stdDeviation="2"/>
+                            <feGaussianBlur stdDeviation="7.5"/>
                         </filter>
                     </defs>
 
-                    <!-- 1. Hình thang đổ bóng lên mặt bàn lùi về phía sau và chếch sang trái -->
+                    <!-- Duy nhất 1 hình mờ đổ bóng trên mặt bàn lùi về phía sau -->
                     <polygon points="${sFrontLeftX},${sFrontY} 
                                      ${sFrontRightX},${sFrontY} 
                                      ${sBackRightX},${sBackY} 
                                      ${sBackLeftX},${sBackY}" 
                              fill="url(#rearGroundShadow)" filter="url(#rearDeskBlur)"/>
-
-                    <!-- 2. Vệt bóng tiếp xúc của chân chống (Kickstand foot shadow) trên mặt bàn -->
-                    <ellipse cx="${kickstandFootRelX}" cy="${kickstandFootRelY}" rx="20" ry="7" fill="#0a0806" fill-opacity="0.65" filter="url(#rearDeskBlur)"/>
-
-                    <!-- 3. Dải bóng tiếp xúc cực đậm bám sát đáy chân tranh trên mặt gỗ -->
-                    <rect x="${sFrontLeftX}" y="${sFrontY - 2}" width="${finalW + 12}" height="5" rx="2" fill="#000000" fill-opacity="0.90" filter="url(#contactBlur)"/>
                 </svg>
             `);
 
-            // B. Chân Chống (Kickstand) nghiêng tựa phía sau tranh
+            // B. Chân Chống (Kickstand) phía sau tranh tựa xuống bàn (thuần túy, không có shadow)
             const legTopX = Math.round(left + finalW * 0.38);
             const legTopY = Math.round(top + finalH * 0.46);
             const legFootX = Math.round(left - Math.min(32, finalW * 0.16));
@@ -401,47 +380,19 @@ class RoomMockupRenderer {
 
             const kickstandSvg = Buffer.from(`
                 <svg width="${legSvgW}" height="${legSvgH}" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="legGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#334155" stop-opacity="0.95"/>
-                            <stop offset="50%" stop-color="#1e293b" stop-opacity="1.0"/>
-                            <stop offset="100%" stop-color="#0f172a" stop-opacity="0.98"/>
-                        </linearGradient>
-                        <filter id="legShadow" x="-30%" y="-30%" width="160%" height="160%">
-                            <feDropShadow dx="-3" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.50"/>
-                        </filter>
-                    </defs>
                     <polygon points="${relTopX1},${relTopY} ${relTopX2},${relTopY} ${relFootX2},${relFootY} ${relFootX1},${relFootY}" 
-                             fill="url(#legGrad)" filter="url(#legShadow)"/>
+                             fill="#242933"/>
                     <polygon points="${relFootX1},${relFootY} ${relFootX2},${relFootY} ${relFootX2 + 3},${relFootY + 2} ${relFootX1 - 2},${relFootY + 2}" 
-                             fill="#090d16"/>
+                             fill="#11151c"/>
                 </svg>
             `);
 
-            // C. Bóng đứng sau ảnh (Soft Drop Shadow sau lưng khung tranh)
-            const backShadowPad = 25;
-            const backShadowW = finalW + backShadowPad * 2;
-            const backShadowH = finalH + backShadowPad * 2;
-            const frameBackShadowSvg = Buffer.from(`
-                <svg width="${backShadowW}" height="${backShadowH}" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <filter id="deskFrameBackShadow" x="-30%" y="-30%" width="160%" height="160%">
-                            <!-- Bóng đứng sau lưng khung ảnh đổ nhẹ sang trái -->
-                            <feDropShadow dx="-6" dy="-2" stdDeviation="6" flood-color="#090d16" flood-opacity="0.35"/>
-                        </filter>
-                    </defs>
-                    <rect x="${backShadowPad}" y="${backShadowPad}" width="${finalW}" height="${finalH}" rx="2" fill="black" filter="url(#deskFrameBackShadow)"/>
-                </svg>
-            `);
-
-            // Thứ tự composite chuẩn quang học:
-            // 1. Bóng đổ trên mặt bàn về phía sau (dưới cùng)
-            // 2. Bóng đứng sau lưng khung ảnh
-            // 3. Chân chống phía sau
-            // 4. Khung tranh đè lên trên cùng
+            // Thứ tự composite:
+            // 1. Duy nhất 1 hình mờ đổ lên bàn về phía sau
+            // 2. Chân chống không bóng
+            // 3. Khung tranh đè lên trên
             compositeLayers = [
                 { input: deskShadowSvg, top: deskShadowTop, left: deskShadowLeft },
-                { input: frameBackShadowSvg, top: top - backShadowPad, left: left - backShadowPad },
                 { input: kickstandSvg, top: legOriginY, left: legOriginX },
                 { input: scaledFramed, top: top, left: left }
             ];

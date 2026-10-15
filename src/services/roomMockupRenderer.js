@@ -25,11 +25,11 @@ const PRESETS = {
         bgPath: path.join(__dirname, '../assets/backgrounds/desk_clean.jpg'),
         anchorXRatio: 0.65,    // Đặt ở vị trí 65% bên phải mặt bàn (chuẩn xác theo mẫu của Đạo Huynh)
         bottomYRatio: 0.645,   // Đáy khung tranh tựa vững vàng trên mặt bàn gỗ sồi
-        maxSafeWidth: 160,     // Khổ khung để bàn nhỏ nhắn thanh lịch vừa vặn
-        maxSafeHeight: 220,    // Chiều cao tối đa khung để bàn
+        maxSafeWidth: 240,     // Khổ khung để bàn cân đối, viền đầm chắc tương xứng với tường
+        maxSafeHeight: 320,    // Chiều cao tối đa khung để bàn
         shadowDx: -8,          // Ánh sáng tự nhiên từ rèm cửa sổ bên phải
         shadowDy: 10,
-        shadowBlur: 7,
+        shadowBlur: 8,
         shadowOpacity: 0.35
     }
 };
@@ -181,18 +181,18 @@ class RoomMockupRenderer {
                 top = minCeiling;
             }
         } else {
-            // Bối cảnh bàn làm việc: Khung để bàn nhỏ xinh (Tự động thích ứng Khổ Dọc / Ngang / Vuông)
-            let maxSafeW = preset.maxSafeWidth || 160;
-            let maxSafeH = preset.maxSafeHeight || 220;
+            // Bối cảnh bàn làm việc: Khung để bàn (Tự động thích ứng Khổ Dọc / Ngang / Vuông)
+            let maxSafeW = preset.maxSafeWidth || 240;
+            let maxSafeH = preset.maxSafeHeight || 320;
 
             if (aspect > 1.15) {
                 // Khung ngang để bàn
-                maxSafeW = 210;
-                maxSafeH = 160;
+                maxSafeW = 320;
+                maxSafeH = 240;
             } else if (aspect >= 0.9 && aspect <= 1.15) {
                 // Khung vuông để bàn
-                maxSafeW = 180;
-                maxSafeH = 180;
+                maxSafeW = 270;
+                maxSafeH = 270;
             }
 
             finalW = maxSafeW;

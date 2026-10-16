@@ -366,25 +366,27 @@ class RoomMockupRenderer {
             const gx2 = (left - castLen - minX).toFixed(1);
             const gy2 = (bottomY - 15 - minY).toFixed(1);
 
+            const shadowColor = "#120a05";
+
             const deskShadowSvg = Buffer.from(`
                 <svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <!-- Penumbra Gradient: viền ngoài mềm mượt -->
+                        <!-- Penumbra Gradient: viền ngoài êm dịu, nhẹ nhàng hơn -->
                         <linearGradient id="penumbraGrad" x1="${gx1}" y1="${gy1}" x2="${gx2}" y2="${gy2}" gradientUnits="userSpaceOnUse">
-                            <stop offset="0%" stop-color="#080402" stop-opacity="0.65"/>
-                            <stop offset="25%" stop-color="#080402" stop-opacity="0.55"/>
-                            <stop offset="55%" stop-color="#080402" stop-opacity="0.32"/>
-                            <stop offset="80%" stop-color="#080402" stop-opacity="0.14"/>
-                            <stop offset="100%" stop-color="#080402" stop-opacity="0.0"/>
+                            <stop offset="0%" stop-color="${shadowColor}" stop-opacity="0.45"/>
+                            <stop offset="25%" stop-color="${shadowColor}" stop-opacity="0.36"/>
+                            <stop offset="55%" stop-color="${shadowColor}" stop-opacity="0.20"/>
+                            <stop offset="80%" stop-color="${shadowColor}" stop-opacity="0.08"/>
+                            <stop offset="100%" stop-color="${shadowColor}" stop-opacity="0.0"/>
                         </linearGradient>
 
-                        <!-- Umbra Gradient: lõi bóng đậm đà khớp sắc độ bóng chiếc cốc -->
+                        <!-- Umbra Gradient: lõi bóng dịu nhẹ, thanh thoát hơn -->
                         <linearGradient id="umbraGrad" x1="${gx1}" y1="${gy1}" x2="${gx2}" y2="${gy2}" gradientUnits="userSpaceOnUse">
-                            <stop offset="0%" stop-color="#060301" stop-opacity="0.88"/>
-                            <stop offset="20%" stop-color="#060301" stop-opacity="0.80"/>
-                            <stop offset="48%" stop-color="#060301" stop-opacity="0.55"/>
-                            <stop offset="75%" stop-color="#060301" stop-opacity="0.22"/>
-                            <stop offset="100%" stop-color="#060301" stop-opacity="0.0"/>
+                            <stop offset="0%" stop-color="${shadowColor}" stop-opacity="0.68"/>
+                            <stop offset="20%" stop-color="${shadowColor}" stop-opacity="0.58"/>
+                            <stop offset="48%" stop-color="${shadowColor}" stop-opacity="0.36"/>
+                            <stop offset="75%" stop-color="${shadowColor}" stop-opacity="0.14"/>
+                            <stop offset="100%" stop-color="${shadowColor}" stop-opacity="0.0"/>
                         </linearGradient>
 
                         <filter id="penumbraBlur" x="-30%" y="-30%" width="160%" height="160%">
@@ -408,7 +410,7 @@ class RoomMockupRenderer {
                              L ${pPtRearFrame} Z" 
                           fill="url(#penumbraGrad)" filter="url(#penumbraBlur)"/>
 
-                    <!-- 2. Umbra: Lõi bóng đổ đậm đà tương đương bóng cốc -->
+                    <!-- 2. Umbra: Lõi bóng đổ chính -->
                     <path d="M ${uPtBaseUnder} 
                              L ${uPtBaseFront} 
                              L ${uPtBaseLeft} 
@@ -419,10 +421,10 @@ class RoomMockupRenderer {
                           fill="url(#umbraGrad)" filter="url(#umbraBlur)"/>
 
                     <!-- 3. Bóng tiếp xúc chân chống (kickstand contact) -->
-                    <ellipse cx="${(kickstandFootX - minX + 5).toFixed(1)}" cy="${(kickstandFootY - minY + 2).toFixed(1)}" rx="13" ry="5" fill="#060301" opacity="0.90" filter="url(#contactBlur)"/>
+                    <ellipse cx="${(kickstandFootX - minX + 5).toFixed(1)}" cy="${(kickstandFootY - minY + 2).toFixed(1)}" rx="13" ry="5" fill="${shadowColor}" opacity="0.75" filter="url(#contactBlur)"/>
 
-                    <!-- 4. Rãnh bóng tiếp xúc chân khung (Contact Shadow) siêu đậm sát mặt bàn -->
-                    <rect x="${(left - minX - 1).toFixed(1)}" y="${(bottomY - minY - 2).toFixed(1)}" width="${finalW + 2}" height="6.5" rx="3" fill="#060301" opacity="0.95" filter="url(#contactBlur)"/>
+                    <!-- 4. Rãnh bóng tiếp xúc chân khung (Contact Shadow) sát mặt bàn -->
+                    <rect x="${(left - minX - 1).toFixed(1)}" y="${(bottomY - minY - 2).toFixed(1)}" width="${finalW + 2}" height="6.5" rx="3" fill="${shadowColor}" opacity="0.82" filter="url(#contactBlur)"/>
                 </svg>
             `);
 

@@ -20,9 +20,14 @@ function getUploadsBaseDir() {
         return containerPodTemplates;
     }
 
-    const hostPodTemplates = path.resolve(__dirname, '../../../pod.localhost/source/public/pod-templates');
-    if (fs.existsSync(hostPodTemplates)) {
-        return hostPodTemplates;
+    const hostStorageTemplates = path.resolve(__dirname, '../../../pod.quyle91.net/source/storage/app/public/pod-templates');
+    if (fs.existsSync(hostStorageTemplates)) {
+        return hostStorageTemplates;
+    }
+
+    const hostLocalTemplates = path.resolve(__dirname, '../../../pod.localhost/source/storage/app/public/pod-templates');
+    if (fs.existsSync(hostLocalTemplates)) {
+        return hostLocalTemplates;
     }
 
     const containerWpUploads = '/app/wp-uploads';
@@ -108,7 +113,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
     const templateDir = isPodTemplates ? path.join(uploadsBaseDir, targetFolder) : path.join(uploadsBaseDir, 'pod', targetFolder);
     const layersDir = path.join(templateDir, 'layers');
     const thumbsDir = path.join(templateDir, 'thumbs');
-    const urlBase = isPodTemplates ? `/pod-templates/${targetFolder}` : `/wp-content/uploads/pod/${targetFolder}`;
+    const urlBase = isPodTemplates ? `/storage/pod-templates/${targetFolder}` : `/wp-content/uploads/pod/${targetFolder}`;
 
     fs.mkdirSync(layersDir, { recursive: true });
     fs.mkdirSync(thumbsDir, { recursive: true });

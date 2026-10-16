@@ -310,61 +310,127 @@ class RoomMockupRenderer {
         } else {
             // ========================================================
             // BỐI CẢNH BÀN LÀM VIỆC (DESK):
-            // 1. Duy nhất 1 hình mờ đổ lên bàn về phía sau (mờ êm dịu, không shadow viền)
-            // 2. Chân chống phía sau tựa xuống bàn (không shadow)
+            // Ánh sáng tự nhiên từ cửa sổ lớn bên phải chiếu sang
+            // => Bóng đổ tự nhiên dạt sang BÊN TRÁI trên mặt bàn gỗ
+            // 1. Contact Shadow: Rãnh bóng tiếp xúc chân khung và chân chống siêu đậm sát mặt bàn
+            // 2. Umbra (Core Shadow): Lõi bóng đổ chính dạt sang trái, độ đậm đà tương đương bóng chiếc cốc
+            // 3. Penumbra (Soft Halo): Viền bóng mờ êm dịu khuếch tán tự nhiên theo thớ gỗ sồi
+            // 4. Chân chống phía sau tựa xuống bàn vững chãi
             // ========================================================
             const bottomY = top + finalH;
 
-            // A. Duy nhất 1 hình mờ đổ lên mặt bàn lùi về phía sau (Rear Tabletop Soft Blur)
-            const shadowDepth = Math.round(Math.min(95, Math.max(45, finalH * 0.30)));
-            const shadowSkewLeft = Math.round(Math.min(90, Math.max(45, finalW * 0.36)));
-            const shadowSkewRight = Math.round(Math.min(25, Math.max(10, finalW * 0.10)));
+            const castLen = Math.round(finalH * 0.85); // Chiều dài bóng đổ sang trái tỷ lệ theo chiều cao khung
+            const pad = 70;
 
-            const shadowPad = 40;
-            const deskShadowW = finalW + shadowSkewLeft + shadowSkewRight + shadowPad * 2;
-            const deskShadowH = shadowDepth + shadowPad * 2;
+            const minX = left - castLen - pad;
+            const maxX = left + finalW + pad;
+            const minY = bottomY - 90 - pad;
+            const maxY = bottomY + 40 + pad;
 
-            const deskShadowTop = (bottomY - shadowDepth) - shadowPad;
-            const deskShadowLeft = (left - shadowSkewLeft) - shadowPad;
+            const svgW = maxX - minX;
+            const svgH = maxY - minY;
 
-            // Tọa độ các đỉnh bóng đổ hình thang trên mặt bàn:
-            const sFrontLeftX = shadowPad + shadowSkewLeft;
-            const sFrontRightX = shadowPad + shadowSkewLeft + finalW;
-            const sFrontY = shadowPad + shadowDepth;
+            const toSvg = (x, y) => `${(x - minX).toFixed(1)},${(y - minY).toFixed(1)}`;
 
-            const sBackLeftX = shadowPad;
-            const sBackRightX = shadowPad + shadowSkewLeft + finalW - shadowSkewRight;
-            const sBackY = shadowPad;
+            const kickstandFootX = Math.round(left - Math.min(32, Math.max(20, finalW * 0.15)));
+            const kickstandFootY = Math.round(bottomY - Math.min(45, Math.max(28, finalH * 0.14)));
+
+            // 1. Umbra (Lõi bóng chính - đậm, gọn hơn, blur chặt)
+            const uCastLen = castLen * 0.85;
+            const uPtBaseUnder = toSvg(left + finalW * 0.45, bottomY);
+            const uPtBaseFront = toSvg(left + 15, bottomY + 3);
+            const uPtBaseLeft = toSvg(left, bottomY + 8);
+            const uPtFrontMid = toSvg(left - uCastLen * 0.35, bottomY + 11);
+            const uPtTipBottom = toSvg(left - uCastLen * 0.82, bottomY - 2);
+            const uPtTip = toSvg(left - uCastLen, bottomY - 14);
+            const uPtTipTop = toSvg(left - uCastLen * 0.82, bottomY - 28);
+            const uPtRearMid = toSvg(left - uCastLen * 0.40, bottomY - 42);
+            const uPtRearKickstand = toSvg(kickstandFootX - 12, kickstandFootY - 6);
+            const uPtRearFrame = toSvg(left + finalW * 0.20, kickstandFootY + 5);
+
+            // 2. Penumbra (Viền bóng mềm - tỏa rộng, chuyển êm)
+            const pPtBaseUnder = toSvg(left + finalW * 0.55, bottomY);
+            const pPtBaseFront = toSvg(left + 25, bottomY + 5);
+            const pPtBaseLeft = toSvg(left, bottomY + 12);
+            const pPtFrontMid = toSvg(left - castLen * 0.35, bottomY + 16);
+            const pPtTipBottom = toSvg(left - castLen * 0.80, bottomY);
+            const pPtTip = toSvg(left - castLen, bottomY - 14);
+            const pPtTipTop = toSvg(left - castLen * 0.82, bottomY - 34);
+            const pPtRearMid = toSvg(left - castLen * 0.40, bottomY - 54);
+            const pPtRearKickstand = toSvg(kickstandFootX - 22, kickstandFootY - 12);
+            const pPtRearFrame = toSvg(left + finalW * 0.30, kickstandFootY + 5);
+
+            // Tọa độ gradient userSpaceOnUse chuẩn xác
+            const gx1 = (left + 15 - minX).toFixed(1);
+            const gy1 = (bottomY - minY).toFixed(1);
+            const gx2 = (left - castLen - minX).toFixed(1);
+            const gy2 = (bottomY - 15 - minY).toFixed(1);
 
             const deskShadowSvg = Buffer.from(`
-                <svg width="${deskShadowW}" height="${deskShadowH}" xmlns="http://www.w3.org/2000/svg">
+                <svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <!-- Gradient bóng mờ êm dịu từ chân tranh lùi về phía sau -->
-                        <linearGradient id="rearGroundShadow" x1="70%" y1="100%" x2="20%" y2="0%">
-                            <stop offset="0%" stop-color="#14100c" stop-opacity="0.55"/>
-                            <stop offset="35%" stop-color="#1e1812" stop-opacity="0.38"/>
-                            <stop offset="70%" stop-color="#2a221a" stop-opacity="0.18"/>
-                            <stop offset="100%" stop-color="#2a221a" stop-opacity="0.0"/>
+                        <!-- Penumbra Gradient: viền ngoài mềm mượt -->
+                        <linearGradient id="penumbraGrad" x1="${gx1}" y1="${gy1}" x2="${gx2}" y2="${gy2}" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#080402" stop-opacity="0.65"/>
+                            <stop offset="25%" stop-color="#080402" stop-opacity="0.55"/>
+                            <stop offset="55%" stop-color="#080402" stop-opacity="0.32"/>
+                            <stop offset="80%" stop-color="#080402" stop-opacity="0.14"/>
+                            <stop offset="100%" stop-color="#080402" stop-opacity="0.0"/>
                         </linearGradient>
-                        <filter id="rearDeskBlur" x="-30%" y="-30%" width="160%" height="160%">
-                            <feGaussianBlur stdDeviation="7.5"/>
+
+                        <!-- Umbra Gradient: lõi bóng đậm đà khớp sắc độ bóng chiếc cốc -->
+                        <linearGradient id="umbraGrad" x1="${gx1}" y1="${gy1}" x2="${gx2}" y2="${gy2}" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#060301" stop-opacity="0.88"/>
+                            <stop offset="20%" stop-color="#060301" stop-opacity="0.80"/>
+                            <stop offset="48%" stop-color="#060301" stop-opacity="0.55"/>
+                            <stop offset="75%" stop-color="#060301" stop-opacity="0.22"/>
+                            <stop offset="100%" stop-color="#060301" stop-opacity="0.0"/>
+                        </linearGradient>
+
+                        <filter id="penumbraBlur" x="-30%" y="-30%" width="160%" height="160%">
+                            <feGaussianBlur stdDeviation="12.0"/>
+                        </filter>
+                        <filter id="umbraBlur" x="-30%" y="-30%" width="160%" height="160%">
+                            <feGaussianBlur stdDeviation="5.0"/>
+                        </filter>
+                        <filter id="contactBlur" x="-20%" y="-50%" width="140%" height="200%">
+                            <feGaussianBlur stdDeviation="2.0"/>
                         </filter>
                     </defs>
 
-                    <!-- Duy nhất 1 hình mờ đổ bóng trên mặt bàn lùi về phía sau -->
-                    <polygon points="${sFrontLeftX},${sFrontY} 
-                                     ${sFrontRightX},${sFrontY} 
-                                     ${sBackRightX},${sBackY} 
-                                     ${sBackLeftX},${sBackY}" 
-                             fill="url(#rearGroundShadow)" filter="url(#rearDeskBlur)"/>
+                    <!-- 1. Penumbra: Vùng tỏa mềm bên ngoài -->
+                    <path d="M ${pPtBaseUnder} 
+                             L ${pPtBaseFront} 
+                             L ${pPtBaseLeft} 
+                             Q ${pPtFrontMid} ${pPtTipBottom} 
+                             Q ${pPtTip} ${pPtTipTop} 
+                             Q ${pPtRearMid} ${pPtRearKickstand} 
+                             L ${pPtRearFrame} Z" 
+                          fill="url(#penumbraGrad)" filter="url(#penumbraBlur)"/>
+
+                    <!-- 2. Umbra: Lõi bóng đổ đậm đà tương đương bóng cốc -->
+                    <path d="M ${uPtBaseUnder} 
+                             L ${uPtBaseFront} 
+                             L ${uPtBaseLeft} 
+                             Q ${uPtFrontMid} ${uPtTipBottom} 
+                             Q ${uPtTip} ${uPtTipTop} 
+                             Q ${uPtRearMid} ${uPtRearKickstand} 
+                             L ${uPtRearFrame} Z" 
+                          fill="url(#umbraGrad)" filter="url(#umbraBlur)"/>
+
+                    <!-- 3. Bóng tiếp xúc chân chống (kickstand contact) -->
+                    <ellipse cx="${(kickstandFootX - minX + 5).toFixed(1)}" cy="${(kickstandFootY - minY + 2).toFixed(1)}" rx="13" ry="5" fill="#060301" opacity="0.90" filter="url(#contactBlur)"/>
+
+                    <!-- 4. Rãnh bóng tiếp xúc chân khung (Contact Shadow) siêu đậm sát mặt bàn -->
+                    <rect x="${(left - minX - 1).toFixed(1)}" y="${(bottomY - minY - 2).toFixed(1)}" width="${finalW + 2}" height="6.5" rx="3" fill="#060301" opacity="0.95" filter="url(#contactBlur)"/>
                 </svg>
             `);
 
-            // B. Chân Chống (Kickstand) phía sau tranh tựa xuống bàn (thuần túy, không có shadow)
+            // B. Chân Chống (Kickstand) phía sau tranh tựa xuống bàn
             const legTopX = Math.round(left + finalW * 0.38);
             const legTopY = Math.round(top + finalH * 0.46);
-            const legFootX = Math.round(left - Math.min(32, finalW * 0.16));
-            const legFootY = Math.round(bottomY - shadowDepth * 0.45);
+            const legFootX = kickstandFootX;
+            const legFootY = kickstandFootY;
 
             const legSvgW = Math.max(50, (legTopX - legFootX) + 35);
             const legSvgH = Math.max(50, (bottomY - legTopY) + 25);
@@ -388,11 +454,11 @@ class RoomMockupRenderer {
             `);
 
             // Thứ tự composite:
-            // 1. Duy nhất 1 hình mờ đổ lên bàn về phía sau
-            // 2. Chân chống không bóng
-            // 3. Khung tranh đè lên trên
+            // 1. Bóng đổ dạt sang bên trái trên mặt bàn (Umbra + Penumbra + Contact)
+            // 2. Chân chống tựa bàn
+            // 3. Khung tranh đè lên trên cùng
             compositeLayers = [
-                { input: deskShadowSvg, top: deskShadowTop, left: deskShadowLeft },
+                { input: deskShadowSvg, top: minY, left: minX },
                 { input: kickstandSvg, top: legOriginY, left: legOriginX },
                 { input: scaledFramed, top: top, left: left }
             ];

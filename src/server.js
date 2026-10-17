@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 
 const renderRouter = require('./routes/render');
 const storageCleaner = require('./services/storageCleaner');
@@ -98,9 +99,13 @@ app.get(['/', '/test', '/test-render', '/test-render.html'], async (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'test-render.html'));
 });
 
-// Static serving for generated print files
+// Static serving for generated print files & extracted template layers
 const printsDir = process.env.OUTPUT_DIR || path.join(__dirname, '../storage/prints');
+const templatesDir = path.join(__dirname, '../storage/templates');
+if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
+
 app.use('/prints', express.static(printsDir));
+app.use('/templates', express.static(templatesDir));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check and Live Connection Diagnostics

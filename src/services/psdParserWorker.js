@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const archiver = require('archiver');
 const { readPsd, initializeCanvas } = require('ag-psd');
 
 // Initialize ag-psd without native canvas dependency (pure JS TypedArray buffer)
@@ -11,38 +12,27 @@ initializeCanvas(null, (width, height) => ({
 }));
 
 /**
- * Determine the base directory for WordPress uploads.
- * Checks container mount first, then local host directory.
+ * Package a directory of template assets into an in-memory ZIP buffer.
+ */
+function createBundleZipBuffer(sourceDir) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        const archive = archiver('zip', { zlib: { level: 6 } });
+        archive.on('data', chunk => chunks.push(chunk));
+        archive.on('end', () => resolve(Buffer.concat(chunks)));
+        archive.on('error', err => reject(err));
+        archive.directory(sourceDir, false);
+        archive.finalize();
+    });
+}
+
+/**
+ * Base directory for storing extracted template layers and thumbnails.
  */
 function getUploadsBaseDir() {
-    const containerPodTemplates = '/app/pod-templates';
-    if (fs.existsSync(containerPodTemplates)) {
-        return containerPodTemplates;
-    }
-
-    const hostStorageTemplates = path.resolve(__dirname, '../../../pod.quyle91.net/source/storage/app/public/pod-templates');
-    if (fs.existsSync(hostStorageTemplates)) {
-        return hostStorageTemplates;
-    }
-
-    const hostLocalTemplates = path.resolve(__dirname, '../../../pod.localhost/source/storage/app/public/pod-templates');
-    if (fs.existsSync(hostLocalTemplates)) {
-        return hostLocalTemplates;
-    }
-
-    const containerWpUploads = '/app/wp-uploads';
-    if (fs.existsSync(containerWpUploads)) {
-        return containerWpUploads;
-    }
-
-    const hostWpUploads = path.resolve(__dirname, '../../../pod.localhost/source/wp-content/uploads');
-    if (fs.existsSync(hostWpUploads)) {
-        return hostWpUploads;
-    }
-
-    const fallbackDir = path.resolve(__dirname, '../../storage/pod');
-    fs.mkdirSync(fallbackDir, { recursive: true });
-    return fallbackDir;
+    const templatesDir = path.resolve(__dirname, '../../storage/templates');
+    fs.mkdirSync(templatesDir, { recursive: true });
+    return templatesDir;
 }
 
 /**
@@ -108,12 +98,12 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
     progressCallback(40, 'preparing_storage', 'Đang khởi tạo thư mục lưu trữ sản phẩm...');
 
     const uploadsBaseDir = getUploadsBaseDir();
-    const isPodTemplates = uploadsBaseDir.includes('pod-templates');
     const targetFolder = productId ? String(productId) : templateId;
-    const templateDir = isPodTemplates ? path.join(uploadsBaseDir, targetFolder) : path.join(uploadsBaseDir, 'pod', targetFolder);
+    const templateDir = path.join(uploadsBaseDir, targetFolder);
     const layersDir = path.join(templateDir, 'layers');
     const thumbsDir = path.join(templateDir, 'thumbs');
-    const urlBase = isPodTemplates ? `/storage/pod-templates/${targetFolder}` : `/wp-content/uploads/pod/${targetFolder}`;
+    const renderBaseUrl = process.env.BASE_URL || 'http://pod-render.localhost';
+    const urlBase = `${renderBaseUrl}/templates/${targetFolder}`;
 
     fs.mkdirSync(layersDir, { recursive: true });
     fs.mkdirSync(thumbsDir, { recursive: true });
@@ -135,11 +125,12 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
 
         progressCallback(itemProgress, 'processing_layer', `Đang xử lý layer [${i + 1}/${totalItems}]: ${itemName}`);
 
-        // Case 1: Folder Group with variants [group:slug]
-        const groupMatch = itemName.match(/^\[group:([^\]]+)\]\s*(.*)$/i);
-        if (groupMatch || item.children) {
-            const groupSlug = groupMatch ? groupMatch[1].trim() : slugify(itemName);
-            const groupLabel = (groupMatch && groupMatch[2].trim()) ? groupMatch[2].trim() : itemName.replace(/^\[.*?\]\s*/, '');
+        // Case 1: Folder Group with variants (item.children)
+        // Tên folder: lấy nguyên gốc từ PSD không cần phân tích thay đổi
+        if (item.children && Array.isArray(item.children)) {
+            const rawFolderName = (item.name || `Folder ${i + 1}`).trim();
+            const groupLabel = rawFolderName; // Nguyên gốc từ PSD
+            const groupSlug = slugify(rawFolderName) || `group_${i + 1}`;
 
             const groupChildren = item.children || [];
             const selectorOptions = [];
@@ -148,7 +139,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
             for (let cIdx = 0; cIdx < groupChildren.length; cIdx++) {
                 const child = groupChildren[cIdx];
                 const childName = (child.name || `variant_${cIdx + 1}`).trim();
-                const childSlug = slugify(childName);
+                const childSlug = slugify(childName) || `variant_${cIdx + 1}`;
                 const childLayerId = `layer_${groupSlug}_${childSlug}`;
 
                 if (!defaultLayerId) {
@@ -192,7 +183,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
                 layers.push({
                     id: childLayerId,
                     type: 'image',
-                    name: childName.replace(/^\[.*?\]\s*/, '') || childName,
+                    name: childName,
                     group_id: groupSlug,
                     url: layerUrl,
                     x: child.left ?? 0,
@@ -207,7 +198,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
 
                 selectorOptions.push({
                     id: childSlug,
-                    label: childName.replace(/^\[.*?\]\s*/, ''),
+                    label: childName,
                     layer_id: childLayerId,
                     thumbnail_url: thumbUrl
                 });
@@ -219,7 +210,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
             fields.push({
                 id: groupSlug,
                 type: 'layer_selector',
-                label: groupLabel || 'Chọn tùy chọn',
+                label: groupLabel,
                 default_value: defaultLayerId,
                 display_type: selectorOptions.length <= 6 ? 'swatches' : 'dropdown',
                 options: selectorOptions
@@ -234,23 +225,28 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
         const layerX = item.left ?? 0;
         const layerY = item.top ?? 0;
 
-        // Case 2: Text Layer [text]
-        if (item.text || itemName.toLowerCase().startsWith('[text]')) {
-            const cleanLabel = itemName.replace(/^\[text\]\s*/i, '').trim();
-            const textSlug = slugify(cleanLabel || 'text');
-            const layerId = `layer_text_${textSlug}`;
+        // Case 2: Text Layer
+        // Trong PSD, nếu 1 layer là text: tự hiểu có thể thay đổi text
+        const isTextLayer = Boolean(item.text) || item.type === 'text' || itemName.toLowerCase().startsWith('[text');
+        if (isTextLayer) {
             const textData = item.text || {};
+            const rawText = textData.text ? textData.text.trim() : '';
+            // Tên layer / nhãn: nếu có tag cũ thì loại bỏ, ưu tiên nội dung chữ từ layer
+            const cleanLabel = itemName.replace(/^\[.*?\]\s*/i, '').trim();
+            const defaultText = rawText || cleanLabel || 'Custom Text';
+            const textName = cleanLabel || defaultText;
+            const textSlug = slugify(cleanLabel || defaultText || `text_${i}`);
+            const layerId = `layer_text_${textSlug}`;
 
             const fontName = textData.style?.font?.name || textData.styleRuns?.[0]?.style?.font?.name || 'Montserrat';
             const fontSize = textData.style?.fontSize || 48;
             const fontColor = rgbToHex(textData.style?.fillColor || textData.styleRuns?.[0]?.style?.fillColor);
             const justification = textData.paragraphStyle?.justification || 'left';
-            const defaultText = textData.text || cleanLabel || 'Custom Text';
 
             layers.push({
                 id: layerId,
                 type: 'text',
-                name: cleanLabel || defaultText || itemName,
+                name: textName,
                 default_value: defaultText,
                 font_family: fontName,
                 font_size_pt: fontSize,
@@ -269,10 +265,11 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
                 }
             });
 
+            // Tự động sinh field cho phép tùy chỉnh / nhập text ngoài Personalizer
             fields.push({
                 id: `slot_${textSlug}`,
                 type: 'text',
-                label: cleanLabel || 'Nhập văn bản',
+                label: textName,
                 default_value: defaultText,
                 target_layer: layerId
             });
@@ -280,57 +277,7 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
             continue;
         }
 
-        // Case 3: Icon / Preset Slot [slot:icon] or [slot]
-        const slotMatch = itemName.match(/^\[slot(?::([^\]]+))?\]\s*(.*)$/i);
-        if (slotMatch) {
-            const slotCategory = (slotMatch[1] || 'icon').trim();
-            const cleanLabel = (slotMatch[2] || 'Icon').trim();
-            const slotSlug = slugify(cleanLabel);
-            const layerId = `layer_slot_${slotSlug}`;
 
-            let placeholderUrl = '';
-            if (item.imageData && item.imageData.width > 0 && item.imageData.height > 0) {
-                const placeholderFilename = `slot_${slotSlug}_placeholder.png`;
-                const placeholderFilePath = path.join(layersDir, placeholderFilename);
-                await sharp(Buffer.from(item.imageData.data), {
-                    raw: {
-                        width: item.imageData.width,
-                        height: item.imageData.height,
-                        channels: 4
-                    }
-                })
-                .png()
-                .withMetadata({ density: 300 })
-                .toFile(placeholderFilePath);
-
-                placeholderUrl = `${urlBase}/layers/${placeholderFilename}`;
-            }
-
-            layers.push({
-                id: layerId,
-                type: 'preset_picker',
-                name: cleanLabel || itemName,
-                placeholder_url: placeholderUrl,
-                is_icon_slot: true,
-                x: layerX,
-                y: layerY,
-                width: layerWidth,
-                height: layerHeight,
-                rotation: 0,
-                z_index: zIndexCounter++,
-                printable: true
-            });
-
-            fields.push({
-                id: `slot_${slotSlug}`,
-                type: 'preset_picker',
-                label: cleanLabel || 'Chọn Biểu Tượng',
-                target_layer: layerId,
-                category_slug: slotCategory === 'icon' ? 'pod_icon_category' : slotCategory
-            });
-
-            continue;
-        }
 
         // Case 4: Repeater Layer [repeater]
         if (itemName.toLowerCase().startsWith('[repeater]')) {
@@ -476,18 +423,18 @@ async function parsePsd(jobId, filePath, originalFilename, progressCallback = ()
         fs.writeFileSync(path.join(templateDir, 'template_config.json'), JSON.stringify(templateConfig, null, 2), 'utf8');
     }
 
-    // Auto-cleanup temporary uploaded PSD file to reclaim disk space (TASK-912)
-    progressCallback(98, 'cleaning_up', 'Đang dọn dẹp file PSD tạm trên đĩa...');
+    // Dọn dẹp file PSD gốc 1GB sau khi bóc tách xong để giải phóng đĩa
+    progressCallback(98, 'cleaning_psd', 'Đang giải phóng file PSD gốc...');
     try {
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
-            console.log(`[PsdParserWorker] Auto-cleaned temporary PSD file: ${filePath}`);
+            console.log(`[PsdParserWorker] Auto-cleaned 1GB PSD source file: ${filePath}`);
         }
     } catch (cleanupErr) {
-        console.warn(`[PsdParserWorker] Warning cleaning up temp PSD: ${cleanupErr.message}`);
+        console.warn(`[PsdParserWorker] Warning cleaning up source PSD file: ${cleanupErr.message}`);
     }
 
-    progressCallback(100, 'completed', 'Bóc tách PSD thành công!');
+    progressCallback(100, 'completed', 'Bóc tách PSD và lưu trữ layer thành công!');
 
     return {
         template_id: templateId,

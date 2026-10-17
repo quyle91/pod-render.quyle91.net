@@ -25,5 +25,7 @@ storage/uploads/*
 !storage/uploads/.gitkeep
 storage/chunks/*
 !storage/chunks/.gitkeep
+storage/templates/*
+!storage/templates/.gitkeep
 storage/*.sqlite
 storage/*.sqlite-journal

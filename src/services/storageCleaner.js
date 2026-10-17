@@ -15,10 +15,14 @@ const fs = require('fs');
 class StorageCleaner {
     constructor() {
         this.printsDir = process.env.OUTPUT_DIR || path.join(__dirname, '../../storage/prints');
+        this.templatesDir = process.env.TEMPLATES_DIR || path.join(__dirname, '../../storage/templates');
+        this.uploadsDir = path.join(__dirname, '../../storage/uploads');
+        this.chunksDir = path.join(__dirname, '../../storage/chunks');
         this.maxAgeHours = parseInt(process.env.STORAGE_MAX_AGE_HOURS || '24', 10);
         this.testMaxAgeHours = parseInt(process.env.STORAGE_TEST_MAX_AGE_HOURS || '2', 10);
         this.previewMaxAgeMinutes = parseInt(process.env.STORAGE_PREVIEW_MAX_AGE_MINUTES || '30', 10); // 30 phút cho preview
         this.maxPreviewFiles = parseInt(process.env.STORAGE_MAX_PREVIEW_FILES || '30', 10);             // Tối đa 30 ảnh preview
+        this.templateMaxAgeDays = parseInt(process.env.STORAGE_TEMPLATE_MAX_AGE_DAYS || '7', 10);      // 7 ngày cho templates phân tích
         this.maxStorageMb = parseInt(process.env.STORAGE_MAX_MB || '2048', 10);                         // 2GB default cap
         this.timer = null;
     }
@@ -152,10 +156,20 @@ class StorageCleaner {
             }
         }
 
+        // 4. Dọn dẹp các templates phân tích PSD đã quá hạn (TTL = 7 ngày)
+        const templateStats = this.cleanupExpiredTemplates();
+        deletedFiles += templateStats.deletedFiles;
+        freedBytes += templateStats.freedBytes;
+
+        // 5. Dọn dẹp uploads & chunks tạm thời tồn đọng > 24 giờ
+        const orphanStats = this.cleanupOrphanFiles();
+        deletedFiles += orphanStats.deletedFiles;
+        freedBytes += orphanStats.freedBytes;
+
         const remainingMb = (currentTotalBytes / (1024 * 1024)).toFixed(2);
         if (deletedFiles > 0) {
             const freedMb = (freedBytes / (1024 * 1024)).toFixed(2);
-            console.log(`[StorageCleaner] Sweep completed: Deleted ${deletedFiles} files (freed ${freedMb}MB). Current storage: ${remainingMb}MB.`);
+            console.log(`[StorageCleaner] Sweep completed: Deleted ${deletedFiles} items (freed ${freedMb}MB). Current prints storage: ${remainingMb}MB.`);
         }
 
         return {
@@ -164,6 +178,117 @@ class StorageCleaner {
             remainingFiles: fileStats.length,
             remainingMb: parseFloat(remainingMb)
         };
+    }
+
+    /**
+     * Dọn dẹp các folder templates (kết quả sau khi phân tích PSD) đã quá hạn (mặc định 7 ngày)
+     * @param {number} maxDays Mặc định 7 ngày
+     * @returns {{deletedFiles: number, freedBytes: number}}
+     */
+    cleanupExpiredTemplates(maxDays = this.templateMaxAgeDays) {
+        if (!fs.existsSync(this.templatesDir)) {
+            return { deletedFiles: 0, freedBytes: 0 };
+        }
+
+        const now = Date.now();
+        const maxAgeMs = maxDays * 24 * 60 * 60 * 1000;
+        let deletedFiles = 0;
+        let freedBytes = 0;
+
+        try {
+            const entries = fs.readdirSync(this.templatesDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.name === '.gitkeep') continue;
+
+                const fullPath = path.join(this.templatesDir, entry.name);
+                try {
+                    const stat = fs.statSync(fullPath);
+                    const ageMs = now - stat.mtimeMs;
+
+                    if (ageMs > maxAgeMs) {
+                        if (entry.isDirectory()) {
+                            const dirSize = this.getDirectorySize(fullPath);
+                            fs.rmSync(fullPath, { recursive: true, force: true });
+                            deletedFiles++;
+                            freedBytes += dirSize;
+                            console.log(`[StorageCleaner] Expired template deleted (> ${maxDays}d): ${entry.name} (${(dirSize / 1024 / 1024).toFixed(2)} MB)`);
+                        } else if (entry.isFile()) {
+                            freedBytes += stat.size;
+                            fs.unlinkSync(fullPath);
+                            deletedFiles++;
+                        }
+                    }
+                } catch (err) {
+                    // Bỏ qua nếu đang bận hoặc bị lock
+                }
+            }
+        } catch (err) {
+            console.error('[StorageCleaner] Error reading templatesDir:', err.message);
+        }
+
+        return { deletedFiles, freedBytes };
+    }
+
+    /**
+     * Dọn dẹp các file chunks hoặc uploads tồn đọng quá 24h
+     * @returns {{deletedFiles: number, freedBytes: number}}
+     */
+    cleanupOrphanFiles() {
+        const orphanDirs = [this.uploadsDir, this.chunksDir];
+        const now = Date.now();
+        const maxAgeMs = 24 * 60 * 60 * 1000; // 24 giờ
+        let deletedFiles = 0;
+        let freedBytes = 0;
+
+        for (const dir of orphanDirs) {
+            if (!fs.existsSync(dir)) continue;
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                for (const entry of entries) {
+                    if (entry.name === '.gitkeep') continue;
+                    const fullPath = path.join(dir, entry.name);
+                    try {
+                        const stat = fs.statSync(fullPath);
+                        if (now - stat.mtimeMs > maxAgeMs) {
+                            if (entry.isDirectory()) {
+                                const size = this.getDirectorySize(fullPath);
+                                fs.rmSync(fullPath, { recursive: true, force: true });
+                                freedBytes += size;
+                            } else {
+                                freedBytes += stat.size;
+                                fs.unlinkSync(fullPath);
+                            }
+                            deletedFiles++;
+                        }
+                    } catch (e) {}
+                }
+            } catch (e) {}
+        }
+
+        return { deletedFiles, freedBytes };
+    }
+
+    /**
+     * Đệ quy tính dung lượng thư mục (bytes)
+     * @param {string} dirPath 
+     * @returns {number}
+     */
+    getDirectorySize(dirPath) {
+        let size = 0;
+        try {
+            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            for (const entry of entries) {
+                const subPath = path.join(dirPath, entry.name);
+                if (entry.isDirectory()) {
+                    size += this.getDirectorySize(subPath);
+                } else if (entry.isFile()) {
+                    try {
+                        size += fs.statSync(subPath).size;
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+        return size;
     }
 }
 

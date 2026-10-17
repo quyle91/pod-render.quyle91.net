@@ -4,6 +4,10 @@ services:
     build: .
     image: ${APP_IMAGE:-ghcr.io/quyle91/pod-render}:${APP_VERSION:-latest}
     restart: always
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=6144
+    volumes:
+      - render_storage:/app/storage
     networks:
       - default
       - proxy_network_vps
@@ -24,8 +28,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1024M
+          cpus: '2.0'
+          memory: 8192M
 
 networks:
   default:

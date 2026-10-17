@@ -195,9 +195,10 @@ class SharpRenderer {
             } catch (e) {}
         }
 
-        if (!domain && process.env.WP_URL) {
+        const clientUrl = process.env.CLIENT_URL || process.env.WP_URL;
+        if (!domain && clientUrl) {
             try {
-                domain = new URL(process.env.WP_URL).hostname;
+                domain = new URL(clientUrl).hostname;
             } catch (e) {}
         }
 

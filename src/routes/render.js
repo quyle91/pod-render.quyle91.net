@@ -54,7 +54,7 @@ router.post('/render', verifyLicense, async (req, res) => {
             payload
         });
 
-        // If a callback URL is provided, notify WordPress asynchronously
+        // If a callback URL is provided, notify client asynchronously
         if (payload.callback_url) {
             axios.post(payload.callback_url, {
                 order_id: payload.order_id,
@@ -66,7 +66,7 @@ router.post('/render', verifyLicense, async (req, res) => {
             }, {
                 headers: { 'X-POD-SECRET': process.env.SHARED_SECRET }
             }).then(response => {
-                // If WordPress confirmed storing files locally, delete temporary files on the render worker
+                // If client confirmed storing files locally, delete temporary files on the render worker
                 if (response.data && response.data.stored_locally) {
                     const fs = require('fs');
                     if (renderResult.print_output_path && fs.existsSync(renderResult.print_output_path)) {
@@ -82,7 +82,7 @@ router.post('/render', verifyLicense, async (req, res) => {
                     console.log(`[POD Backend] Order #${payload.order_id} Item #${payload.item_id}: Production files transferred to client. Worker temp storage cleaned.`);
                 }
             }).catch(err => {
-                console.error('[POD Backend] Failed to dispatch webhook callback to WordPress:', err.message);
+                console.error('[POD Backend] Failed to dispatch webhook callback to client:', err.message);
             });
         }
 
@@ -124,13 +124,13 @@ router.post('/test-render', verifyLicense, async (req, res) => {
         // If order_id is provided and no direct canvasState:
         if (orderId && (!canvasState || !canvasState.layers)) {
             try {
-                const wpUrl = process.env.WP_URL || 'http://pod.localhost';
-                const wpRes = await axios.get(`${wpUrl}/wp-json/pod-customizer/v1/order-state/${orderId}`, {
+                const clientUrl = process.env.CLIENT_URL || process.env.APP_URL || 'http://pod.localhost';
+                const clientRes = await axios.get(`${clientUrl}/api/orders/${orderId}/state`, {
                     headers: { 'X-POD-SECRET': process.env.SHARED_SECRET || 'pod_secret_token_123456' },
                     timeout: 8000
                 });
-                if (wpRes.data && wpRes.data.success && wpRes.data.data && wpRes.data.data.length > 0) {
-                    const itemData = wpRes.data.data[0];
+                if (clientRes.data && clientRes.data.success && clientRes.data.data) {
+                    const itemData = Array.isArray(clientRes.data.data) ? clientRes.data.data[0] : clientRes.data.data;
                     payload.order_id = itemData.order_id;
                     payload.item_id = itemData.item_id;
                     payload.product_name = payload.product_name || itemData.product_name;
@@ -138,11 +138,11 @@ router.post('/test-render', verifyLicense, async (req, res) => {
                     payload.preview_url = itemData.preview_url;
                     canvasState = itemData.canvas_state;
                 }
-            } catch (wpErr) {
-                console.warn(`[POD Backend] Could not query WP for order #${orderId}:`, wpErr.message);
+            } catch (queryErr) {
+                console.warn(`[POD Backend] Could not query client for order #${orderId}:`, queryErr.message);
                 return res.status(404).json({
                     success: false,
-                    error: `Order #${orderId} could not be retrieved: ` + (wpErr.response?.data?.error || wpErr.message)
+                    error: `Order #${orderId} could not be retrieved: ` + (queryErr.response?.data?.error || queryErr.message)
                 });
             }
         }

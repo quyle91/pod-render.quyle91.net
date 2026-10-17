@@ -2,6 +2,9 @@
 services:
   backend:
     build: .
+    user: "${HOST_USER:-1000:1000}"
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=6144
     volumes:
       - ./src:/app/src
       - ./storage:/app/storage

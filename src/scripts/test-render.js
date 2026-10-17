@@ -71,10 +71,10 @@ Example:
         canvasState = JSON.parse(options.state);
     } else if (options.order) {
         console.log(`[POD Fast Test] Fetching order state for Order #${options.order}...`);
-        const wpUrl = process.env.WP_URL || 'http://pod.localhost';
+        const clientUrl = process.env.CLIENT_URL || process.env.WP_URL || 'http://pod.localhost';
         const secret = process.env.SHARED_SECRET || 'pod_secret_token_123456';
         try {
-            const res = await axios.get(`${wpUrl}/wp-json/pod-customizer/v1/order-state/${options.order}`, {
+            const res = await axios.get(`${clientUrl}/api/orders/${options.order}/state`, {
                 headers: { 'X-POD-SECRET': secret },
                 timeout: 8000
             });

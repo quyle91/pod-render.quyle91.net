@@ -222,4 +222,48 @@ router.post('/parse-file', (req, res) => {
     }
 });
 
+/**
+ * POST /api/templates/parse-direct
+ * Directly upload and parse a PSD file synchronously.
+ * Ideal for Seeders, CI/CD automated testing, and instant single-file parsing.
+ */
+router.post('/parse-direct', upload.single('file'), async (req, res) => {
+    try {
+        const productId = req.body.product_id || req.headers['x-product-id'] || null;
+        let filePath = null;
+        let originalFilename = 'template.psd';
+
+        if (req.file && req.file.buffer) {
+            originalFilename = req.file.originalname || 'template.psd';
+            const tempFilename = `direct_${Date.now()}_${originalFilename}`;
+            filePath = path.join(UPLOADS_DIR, tempFilename);
+            fs.writeFileSync(filePath, req.file.buffer);
+        } else if (req.body.file_path && fs.existsSync(req.body.file_path)) {
+            filePath = req.body.file_path;
+            originalFilename = req.body.filename || path.basename(filePath);
+        } else {
+            return res.status(400).json({ success: false, error: 'Vui lòng đính kèm file PSD (multipart field "file") hoặc file_path hợp lệ.' });
+        }
+
+        const { parsePsd } = require('../services/psdParserWorker');
+        const jobId = `sync_${Date.now()}`;
+        const result = await parsePsd(jobId, filePath, originalFilename, () => {}, { productId });
+
+        // Dọn dẹp tệp tạm sau khi hoàn tất nếu là upload
+        if (req.file && fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch (e) {}
+        }
+
+        return res.status(200).json({
+            success: true,
+            status: 'completed',
+            product_id: productId,
+            data: result
+        });
+    } catch (err) {
+        console.error('[Template Direct Parse] Error:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 module.exports = router;
